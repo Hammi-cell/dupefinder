@@ -1,6 +1,7 @@
 services:
   dupefinder:
-    build: .
+    image: ghcr.io/hammi-cell/dupefinder:latest   # fertiges Image aus GitHub Actions (docker compose pull)
+    build: .                                       # lokal bauen: docker compose up -d --build
     container_name: dupefinder
     restart: unless-stopped
     user: "1028:100"          # dein DSM-User:users  ->  per SSH: id <user>

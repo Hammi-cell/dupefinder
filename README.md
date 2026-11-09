@@ -110,3 +110,15 @@ Sortierung (Einsparung, Dateigröße, Anzahl, Datum, Pfad) und Filter (Bilder, V
 ## Baum aktuell halten
 Automatisch jede Minute (nur bei sichtbarem Tab) und beim Zurückwechseln in den Tab; „↻ neu laden“ manuell.
 Gelöschte Ordner verschwinden aus Baum, Auswahl und Behalten-Regel (Hinweis); ein gelöschter offener Ordner springt zum nächsten vorhandenen Elternordner.
+
+## Image aus GitHub (ghcr.io)
+Jeder Push auf `main` baut per GitHub Actions ein Image für amd64 und arm64:
+`ghcr.io/hammi-cell/dupefinder:latest` (zusätzlich `sha-xxxxxxx`, bei Tags `v1.2.3` auch `1.2.3`/`1.2`).
+
+Auf der Synology (einmalig anmelden, da das Paket privat ist – PAT mit Recht `read:packages`):
+
+    echo <PAT> | docker login ghcr.io -u Hammi-cell --password-stdin
+    cd /volume1/docker/dupefinder
+    docker compose pull && docker compose up -d
+
+Lokal bauen geht weiterhin mit `docker compose up -d --build`.
