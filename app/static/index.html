@@ -1,0 +1,1001 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DupeFinder</title>
+<style>
+:root{
+  --bg:#14161b;--panel:#1b1e25;--panel2:#232731;--hover:#2a2f3a;--line:#2e3340;
+  --fg:#e6e8ec;--mut:#8a92a3;--dim:#5d6575;--acc:#4c8bf5;--acc-bg:rgba(76,139,245,.14);
+  --red:#e5534b;--ok:#3fb950;--warn:#d29922;
+  --c1:#4c8bf5;--c2:#e0a03a;--c3:#3fb950;--c4:#c069e8;--c5:#e5534b;--c6:#2fb5b5;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);
+  font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+button,select,input{font:inherit;color:inherit}
+button{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:6px 12px;cursor:pointer}
+button:hover:not(:disabled){border-color:var(--acc)}
+button.pri{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
+button.danger{background:var(--red);border-color:var(--red);color:#fff}
+button:disabled{opacity:.4;cursor:default}
+button.link{background:none;border:0;padding:0;color:var(--mut);font-size:12px}
+button.link:hover{color:var(--fg)}
+svg{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+#app{display:grid;grid-template-rows:52px 1fr auto;grid-template-columns:330px 1fr;height:100%}
+header{grid-column:1/3;display:flex;align-items:center;gap:14px;padding:0 16px;background:var(--panel);border-bottom:1px solid var(--line)}
+header h1{font-size:17px;margin:0 8px 0 0;font-weight:650;letter-spacing:-.01em}
+header h1 span{color:var(--acc)}
+.seg{display:flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.seg button{border:0;border-radius:0;background:transparent}
+.seg button.on{background:var(--acc);color:#fff}
+.grow{flex:1}.mut{color:var(--mut)}
+#thr{display:none;align-items:center;gap:6px;font-size:13px}
+#prog{min-width:240px;font-size:12px;color:var(--mut)}
+#bar{height:4px;background:var(--panel2);border-radius:2px;margin-top:3px;overflow:hidden}
+#bar i{display:block;height:100%;width:0;background:var(--acc);transition:width .3s}
+
+/* ---------- Sidebar */
+aside{background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.shead{display:flex;align-items:center;justify-content:space-between;padding:12px 14px 6px;
+  font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--mut)}
+#tree{flex:1;overflow:auto;padding:2px 6px 10px}
+.node{display:flex;align-items:center;gap:6px;height:32px;padding:0 6px;border-radius:6px;cursor:pointer;user-select:none;position:relative}
+.node:hover{background:var(--hover)}
+.node.cur{background:var(--panel2)}
+.node.sel{background:var(--acc-bg)}
+.node.sel::before{content:"";position:absolute;left:0;top:6px;bottom:6px;width:3px;border-radius:2px;background:var(--rc)}
+.chev{width:18px;height:18px;display:flex;align-items:center;justify-content:center;color:var(--dim);border-radius:4px;transition:transform .15s}
+.chev:hover{color:var(--fg);background:var(--line)}
+.chev.open{transform:rotate(90deg)}.chev.none{visibility:hidden}
+.ico{color:var(--mut)}.node.sel .ico{color:var(--rc)}
+.ico.drive{color:#8fb4f8}
+.name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.node.inh .name{color:var(--mut)}
+.usage{width:48px;height:4px;background:var(--line);border-radius:2px;overflow:hidden;flex:none}
+.usage i{display:block;height:100%;background:var(--mut)}
+.usage.hi i{background:var(--warn)}
+.num{min-width:18px;height:18px;padding:0 5px;border-radius:9px;font-size:11px;font-weight:700;color:#0b0c0f;
+  display:flex;align-items:center;justify-content:center;background:var(--rc)}
+
+/* Checkbox */
+.cb{width:17px;height:17px;border:1.6px solid var(--dim);border-radius:4px;flex:none;display:flex;align-items:center;justify-content:center;transition:all .12s}
+.cb svg{width:12px;height:12px;stroke-width:3;opacity:0;color:#fff}
+.node:hover .cb{border-color:var(--mut)}
+.cb.on{background:var(--rc,var(--acc));border-color:var(--rc,var(--acc))}.cb.on svg{opacity:1}
+.cb.inh{background:var(--line);border-color:var(--line)}.cb.inh svg{opacity:.6}
+.cb.part{border-color:var(--acc)}.cb.part::after{content:"";width:8px;height:2px;background:var(--acc);border-radius:1px}
+
+/* Auswahlbox */
+#selbox{border-top:1px solid var(--line);padding:4px 10px 12px;max-height:52%;overflow:auto}
+.chip{display:flex;align-items:center;gap:8px;padding:5px 8px;margin:4px 0;border-radius:6px;background:var(--panel2);font-size:12.5px}
+.chip .p{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:rtl;text-align:left}
+.chip .x{cursor:pointer;color:var(--dim);display:flex}.chip .x:hover{color:var(--red)}
+.empty-sel{font-size:12.5px;color:var(--dim);padding:6px 4px}
+.switch{display:flex;align-items:center;gap:10px;margin-top:10px;padding:8px;border-radius:6px;background:var(--panel2);cursor:pointer;font-size:12.5px}
+.switch.off{opacity:.45;pointer-events:none}
+.tg{width:32px;height:18px;border-radius:9px;background:var(--line);position:relative;flex:none;transition:background .15s}
+.tg::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:left .15s}
+.tg.on{background:var(--acc)}.tg.on::after{left:16px}
+
+/* ---------- Inhalt */
+#content{overflow:auto;display:flex;flex-direction:column;min-height:0}
+.tool{position:sticky;top:0;z-index:5;display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 16px;background:var(--bg);border-bottom:1px solid var(--line)}
+.crumb{font-size:13px}.crumb a{color:var(--mut);cursor:pointer}.crumb a:hover{color:var(--fg)}.crumb b{font-weight:600}
+#list{padding:12px 16px}
+table.br{width:100%;border-collapse:collapse}
+table.br td{padding:7px 10px;border-bottom:1px solid var(--line)}
+table.br tr:hover td{background:var(--panel)}
+table.br td.r{text-align:right;color:var(--mut);white-space:nowrap;width:1%}
+table.br td a{color:inherit;text-decoration:none;display:flex;align-items:center;gap:8px}
+table.br td .ico{color:var(--mut)}
+.group{background:var(--panel);border:1px solid var(--line);border-radius:8px;margin-bottom:12px}
+.ghead{padding:8px 12px;border-bottom:1px solid var(--line);display:flex;gap:14px;font-size:12px;color:var(--mut)}
+.files{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px;padding:10px}
+.f{background:var(--panel2);border:2px solid transparent;border-radius:6px;overflow:hidden;position:relative}
+.f.chk{border-color:var(--red)}.f.chk .th{opacity:.4}
+.th{height:150px;background:#0e1014 center/contain no-repeat;cursor:zoom-in;display:flex;align-items:center;justify-content:center;color:var(--dim)}
+.th svg{width:40px;height:40px;stroke-width:1.2}
+.th{position:relative}
+.th .play{position:absolute;width:44px;height:44px;border-radius:50%;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;color:#fff}
+.th .play svg{width:20px;height:20px;fill:#fff;stroke:none;margin-left:3px}
+.th .dur{position:absolute;right:6px;bottom:6px;background:rgba(0,0,0,.7);color:#fff;font-size:11px;padding:1px 5px;border-radius:3px}
+#lbimgs video{flex:1;min-height:0;width:100%;background:#000}
+.noplay{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:#000 center/contain no-repeat;color:#fff}
+.noplay span{background:rgba(0,0,0,.7);padding:6px 10px;border-radius:6px;font-size:12px}
+.meta{padding:6px 8px;font-size:11.5px;color:var(--mut)}
+.meta .p{color:var(--fg);word-break:break-all;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.mline{margin-top:2px;color:#c9b27a;cursor:help;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.mline i{font-style:normal;color:var(--dim)}
+.mline b{font-weight:500;color:#e2cd96}
+#tip{position:fixed;z-index:100;pointer-events:none;opacity:0;transition:opacity .12s;max-width:420px;
+  background:#262b35;border:1px solid #3a4150;border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,.5);
+  padding:7px 10px;font-size:12px;color:var(--fg);word-break:break-all}
+#tip.on{opacity:1}
+#tip:not(.card){white-space:pre-line;word-break:normal}
+#tip.card{padding:10px 12px;word-break:normal;min-width:260px}
+.kv{margin:0;display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:12px;line-height:1.45}
+.kv dt{color:var(--mut);white-space:nowrap}.kv dd{margin:0;color:var(--fg);word-break:break-word}
+.kv dd.mono{font:11px ui-monospace,Menlo,Consolas,monospace;color:#7fc8c8;word-break:break-all}
+.kv .sep{grid-column:1/3;border-top:1px solid #3a4150;margin:3px 0}
+.kv a{color:#8fb4f8}
+.kv .src{color:var(--dim);font-size:11px}
+.meta a{color:var(--acc)}
+.f input{position:absolute;z-index:3;top:7px;left:7px;width:17px;height:17px;accent-color:var(--red);cursor:pointer}
+.f .num{position:absolute;z-index:2;top:7px;right:7px}
+.keep{position:absolute;top:30px;right:7px;z-index:2;font-size:10px;background:var(--ok);color:#000;padding:0 5px;border-radius:3px}
+.empty{padding:60px 20px;text-align:center;color:var(--mut)}
+
+/* ---------- Statuszeile */
+footer{grid-column:1/3;display:flex;align-items:center;gap:10px;padding:8px 16px;min-height:36px;background:var(--panel);border-top:1px solid var(--line);font-size:12.5px}
+footer .i{display:flex;color:var(--acc)}
+footer.warn .i{color:var(--warn)}
+#fmsg{min-width:0}
+footer .right{white-space:nowrap}
+#fmsg b{color:var(--fg);font-weight:600}
+#fmsg .r{font-weight:700}
+footer .right{margin-left:auto;color:var(--dim);padding-left:16px}
+
+/* ---------- Lightbox */
+#lb{position:fixed;inset:0;background:#0a0b0e;display:none;flex-direction:column;z-index:20}
+#lb.on{display:flex}
+#lbimgs{flex:1;display:flex;gap:8px;padding:12px;min-height:0}
+#lbimgs figure{flex:1;margin:0;display:flex;flex-direction:column;min-width:0}
+#lbimgs img{flex:1;min-height:0;object-fit:contain;width:100%}
+#lbimgs figcaption{font-size:12px;color:var(--mut);padding:8px 6px 0;text-align:left;max-height:34vh;overflow:auto}
+#lbimgs figcaption .ptitle{color:var(--fg);font-size:13px;word-break:break-all;margin-bottom:6px;text-align:center}
+#lbimgs figcaption .kv{grid-template-columns:auto 1fr auto 1fr;gap:3px 14px}
+#lbimgs figcaption .kv .sep{grid-column:1/5}
+#lbimgs figcaption .kv .wide{grid-column:2/5}
+#lbimgs figcaption .kv dt.wdt{grid-column:1}
+#lbbar{display:flex;gap:10px;align-items:center;padding:10px 16px;color:var(--mut)}
+#lbtop{display:flex;align-items:center;gap:14px;padding:12px 16px;border-bottom:1px solid var(--line)}
+#lbtop .back{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:600;padding:9px 18px 9px 12px;background:var(--acc);border-color:var(--acc);color:#fff}
+#lbtop .back svg{width:20px;height:20px;stroke-width:2.4}
+#lbtop .info{color:var(--mut)}
+#lbimgs figure{position:relative}
+.lbsel{position:absolute;top:10px;left:10px;z-index:3;display:flex;align-items:center;gap:8px;padding:6px 12px 6px 8px;border-radius:6px;
+  background:rgba(0,0,0,.7);color:#fff;font-size:13px;cursor:pointer;user-select:none;border:2px solid transparent}
+.lbsel input{width:18px;height:18px;accent-color:var(--red);cursor:pointer;margin:0}
+.lbsel kbd{font:11px ui-monospace,monospace;color:var(--mut);border:1px solid #555;border-radius:3px;padding:0 4px}
+figure.chk .lbsel{border-color:var(--red);background:rgba(229,83,75,.25)}
+.lbact{display:flex;gap:6px}
+.lbhead{position:absolute;top:10px;left:10px;right:10px;z-index:3;display:flex;gap:6px;align-items:flex-start;flex-wrap:wrap;pointer-events:none}
+.lbhead>*{pointer-events:auto}
+.lbhead .lbsel,.lbhead .lbtags{position:static}
+.lbhead .lbtags{margin-left:auto}
+.ibtn{display:flex;align-items:center;gap:6px;padding:6px 11px;border-radius:6px;background:rgba(76,139,245,.85);border:2px solid transparent;color:#fff;font-size:13px;cursor:help}
+.ibtn:hover{background:var(--acc);border-color:#9cc0ff}
+.ibtn svg{width:16px;height:16px}
+.lbact button.blue{background:rgba(76,139,245,.9)}.lbact button.blue:hover{background:var(--acc)}
+#lbimgs figcaption.compact{padding-top:6px}
+#lbimgs figcaption.compact .ptitle{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px}
+#lbimgs figcaption.compact .sub{text-align:center;color:var(--mut);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#tip.card.big{max-width:460px}
+.ibtn{cursor:pointer}.ibtn.on{background:#e2b93b;color:#1b1d22;border-color:#ffe08a}
+.pinfo{flex-basis:100%;max-height:calc(100vh - 330px);overflow:auto;pointer-events:auto;
+  background:rgba(22,25,32,.96);border:1px solid #3a4150;border-radius:8px;padding:10px 12px;box-shadow:0 10px 30px rgba(0,0,0,.5)}
+.pinfo .phead{display:flex;gap:8px;align-items:center;margin-bottom:6px;font-size:12.5px;word-break:break-all}
+.pinfo .phead .x{margin-left:auto;cursor:pointer;color:var(--mut);padding:0 4px;font-size:14px}.pinfo .phead .x:hover{color:var(--fg)}
+.pinfo .kv{font-size:11.5px}
+.kv .diff{color:#ffd866!important}.kv dt.diff{font-weight:600}
+.kv dd.diff{background:rgba(255,216,102,.08);border-radius:3px}
+.pinfo .legend{margin-top:8px;font-size:11px;color:var(--dim)}.pinfo .legend .diff{color:#ffd866}
+.ficon,.th .ficon{width:64px;height:80px;flex:none;fill:none;stroke:none;filter:drop-shadow(0 4px 10px rgba(0,0,0,.35))}
+.ficon text{stroke:none}
+.ficon.mini,td .ficon.mini{width:20px;height:25px;filter:none;vertical-align:middle}
+.ficon.big,.lbicon .ficon.big{width:120px;height:150px}
+.th.fth{background:radial-gradient(circle at 50% 40%,#1f2430,#0e1014 70%)}
+.th .pdfth{position:absolute;inset:6px;width:calc(100% - 12px);height:calc(100% - 12px);object-fit:contain;background:#0e1014}
+.lbdoc{flex:1;min-height:0;width:100%;border:0;background:#fff;border-radius:4px}
+.lbdoc.lbtext{background:#f6f7f9}
+.lbicon{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:radial-gradient(circle at 50% 40%,#1f2430,#0a0b0e 70%);border-radius:4px}
+.lbtype{font-size:14px;color:var(--fg)}
+.lbicon audio{width:80%;max-width:360px}
+.dlbtn{display:flex;align-items:center;gap:6px;padding:7px 14px;border-radius:6px;background:var(--acc);color:#fff;text-decoration:none;font-size:13px}
+.f .dbtn{font-size:11px;padding:2px 8px;background:rgba(0,0,0,.7);border-color:transparent;color:#fff}
+.f .dbtn:hover{background:var(--red)}
+.tname{cursor:help}
+.lbact button{display:flex;align-items:center;gap:6px;background:rgba(229,83,75,.9);border-color:transparent;color:#fff;font-size:13px;padding:6px 12px}
+.lbact button:hover{background:var(--red)}
+.lbact svg{width:15px;height:15px}
+#lbtop .lbdel{margin-left:12px}
+#lbpage{display:none;align-items:center;gap:8px;margin-left:10px;padding:3px 4px;border-radius:8px;background:var(--panel2);font-size:13px;color:var(--mut)}
+#lbpage b{color:var(--fg)}#lbpage button{padding:3px 16px;font-size:20px;line-height:1.1;background:var(--acc);border-color:var(--acc);color:#fff;font-weight:700}#lbpage button:disabled{background:var(--panel2);border-color:var(--line);color:var(--dim)}
+.f.out{border:2px dashed #4a5263;background:#1c2028}.f.out .th{opacity:.85}
+.f.out.chk{border-style:solid;border-color:var(--red)}
+.num.out{background:#8a94a6;font-size:12px}
+.srclbl{display:inline-block;font-size:11.5px;line-height:18px;height:18px;padding:0 7px;border-radius:9px;margin-bottom:3px;white-space:nowrap}
+.srclbl.outlbl{color:#ffb4ad;background:rgba(229,83,75,.16);cursor:help}
+.srclbl.curlbl{color:var(--mut);background:rgba(255,255,255,.05)}
+#lbimgs figcaption .srclbl{display:block;width:max-content;margin:0 auto 4px}
+.outcnt{color:#aab4c4}
+.outtag{font-size:12px;padding:2px 9px;border-radius:9px;background:rgba(229,83,75,.28);color:#ffd0cb}
+footer .right a.maint{color:var(--acc);cursor:pointer}footer .right a.maint:hover{text-decoration:underline}
+.ibadge{flex:none;width:16px;height:16px;border-radius:4px;font:700 10px/13px system-ui,sans-serif;text-align:center;cursor:help;border:1.5px solid}
+.ibadge.ok{color:#3fb950;border-color:#3fb950;background:rgba(63,185,80,.1)}
+.ibadge.changed{color:#d29922;border-color:#d29922;background:rgba(210,153,34,.12)}
+.ibadge.partial{color:var(--dim);border-color:var(--dim);border-style:dashed}
+.star{flex:none;cursor:pointer;color:var(--dim);font-size:13px;opacity:0;padding:0 2px}
+.node:hover .star{opacity:1}.star.on{opacity:1;color:#e2b93b;font-weight:700;font-size:12px}
+.chip.pref .star{opacity:1}
+.chip .mv{cursor:pointer;color:var(--dim);padding:0 2px}.chip .mv:hover{color:var(--fg)}
+.tie{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mut);margin:8px 4px 0}
+.tie select,.rctl select{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:4px 6px;color:var(--fg)}
+.rctl{display:flex;gap:16px;align-items:center;margin-bottom:10px;font-size:13px;color:var(--mut)}
+.rctl label{display:flex;gap:6px;align-items:center}
+tr.frow{cursor:pointer}tr.frow .fl{display:flex;align-items:center;gap:8px}
+td a.dl{color:var(--mut);display:inline-flex}td a.dl:hover{color:var(--acc)}
+.lbact a.btn{display:flex;align-items:center;gap:6px;font-size:13px;padding:6px 12px;border-radius:6px;color:#fff;text-decoration:none;background:rgba(76,139,245,.9)}
+.lbact a.btn svg{width:15px;height:15px}
+.itag{font-size:12px;padding:2px 9px;border-radius:9px;margin-left:4px;box-shadow:0 0 0 1px currentColor inset}
+.itag.ok{background:#16301c;color:#9be3a6}.itag.copy{background:#3a3115;color:#f3d77a}
+.itag.del{background:#3a1b19;color:#ffc2bd}.itag.none{background:#23272f;color:var(--mut)}
+.idxbox{margin-top:10px;padding-top:8px;border-top:1px solid var(--line);font-size:12px}
+.idxbox .ih{font-weight:600;color:var(--fg);margin-bottom:4px}
+.idxbox .irow{display:grid;grid-template-columns:90px 1fr;gap:10px;padding:2px 0}.idxbox .irow>span:first-child{color:var(--mut)}
+.idxbox .mono{font:11px ui-monospace,Menlo,monospace;color:#7fc8c8}
+.idxbox .crow{display:flex;gap:8px;padding:2px 0 2px 100px;word-break:break-all}
+.idxbox .crow a{color:#8fb4f8;cursor:pointer}.idxbox .crow.missing a{color:var(--dim);text-decoration:line-through}
+.idxbox .crow.changed .cst{color:var(--warn)}.idxbox .crow.ok .cst{color:var(--ok)}.idxbox .crow.missing .cst{color:var(--red)}
+button.mini{padding:1px 8px;font-size:11.5px}button.blue{background:var(--acc);border-color:var(--acc);color:#fff}
+.tbadge{font-size:11px;padding:1px 6px;border-radius:9px;background:rgba(229,83,75,.16);color:#f0918b;cursor:pointer;flex:none}
+.tbadge:hover{background:rgba(229,83,75,.32)}
+.node.trashnode .name{color:#f0918b}.node.trashnode .ico{color:#f0918b}
+.hbtn{display:flex;align-items:center;gap:7px;white-space:nowrap}
+.hbtn .cnt{background:rgba(229,83,75,.2);color:#f0918b;border-radius:9px;padding:0 7px;font-size:12px}
+.tgroup{background:var(--panel);border:1px solid var(--line);border-radius:8px;margin-bottom:12px}
+.tghead{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--line);font-size:12.5px}
+.tghead input{width:16px;height:16px;accent-color:var(--acc)}
+.tghead .fp{color:var(--fg);cursor:pointer}.tghead .fp:hover{color:var(--acc)}
+.tghead .fp span{color:var(--mut)}
+.f.tsel{border-color:var(--acc)}
+.tact{position:absolute;z-index:3;left:6px;right:6px;bottom:6px;display:flex;justify-content:space-between;gap:6px}.tact button{white-space:nowrap;line-height:1.4}
+.f .rbtn{font-size:11px;padding:2px 8px;background:rgba(0,0,0,.7);border-color:transparent;color:#fff}
+.f .rbtn:hover{background:var(--acc)}
+.banner{display:flex;align-items:center;gap:10px;margin:0 0 10px;padding:8px 12px;border-radius:6px;background:rgba(229,83,75,.1);color:#f0b0ab;font-size:13px}
+.banner button{margin-left:auto}
+#toast{position:fixed;left:50%;bottom:56px;transform:translateX(-50%) translateY(20px);opacity:0;pointer-events:none;transition:all .2s;z-index:120;
+  display:flex;align-items:center;gap:14px;padding:10px 14px 10px 16px;border-radius:8px;background:#2b313d;border:1px solid #3a4150;box-shadow:0 10px 30px rgba(0,0,0,.5);font-size:13px}
+#toast.on{opacity:1;transform:translateX(-50%);pointer-events:auto}
+#toast button{background:var(--acc);border-color:var(--acc);color:#fff;padding:4px 12px}
+figure.chk img,figure.chk video,figure.chk .noplay{opacity:.45}
+.lbtags{position:absolute;top:10px;right:10px;z-index:3;display:flex;gap:6px;align-items:center}
+.lbtags .keep,.lbtags .num{position:static}
+.lbtags .keep{font-size:12px;padding:2px 8px}
+.hash{font:10.5px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#7fc8c8;letter-spacing:.02em;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hash i{font-style:normal;color:var(--dim);margin-right:4px}
+figcaption .hash{font-size:11.5px;margin-top:3px}
+.saved{display:flex;align-items:center;gap:8px;padding:5px 12px;border-radius:16px;background:rgba(63,185,80,.12);color:#8ddb98;font-size:12.5px;white-space:nowrap}
+.saved b{color:#b6f0be}
+#markinfo{font-size:13px;color:var(--mut);flex-basis:100%;order:10}#markinfo:empty{display:none}
+.tool button{white-space:nowrap;flex:none}.tool>span:first-child{white-space:nowrap}
+#lbmark .warn,#markinfo .warn{display:inline-block}#markinfo b{color:var(--fg)}
+#markinfo .warn{color:var(--warn);margin-left:8px}
+</style>
+</head>
+<body>
+<svg style="display:none">
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7.5A1.5 1.5 0 0 1 4.5 6H9l2 2h8.5A1.5 1.5 0 0 1 21 9.5v8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z"/></symbol>
+  <symbol id="i-folder-open" viewBox="0 0 24 24"><path d="M3 17.5V7.5A1.5 1.5 0 0 1 4.5 6H9l2 2h7.5A1.5 1.5 0 0 1 20 9.5V11"/><path d="M3 17.5l2.6-6.1A1.5 1.5 0 0 1 7 10.5h13.5a1 1 0 0 1 .9 1.4l-2.4 6.2a1.5 1.5 0 0 1-1.4.9H4.5A1.5 1.5 0 0 1 3 17.5z"/></symbol>
+  <symbol id="i-drive" viewBox="0 0 24 24"><rect x="3" y="13" width="18" height="7" rx="1.5"/><path d="M5 13l2.2-7.1A1.5 1.5 0 0 1 8.6 5h6.8a1.5 1.5 0 0 1 1.4.9L19 13"/><path d="M7 16.5h.01M10 16.5h.01"/></symbol>
+  <symbol id="i-stack" viewBox="0 0 24 24"><path d="M12 3l9 4.5-9 4.5-9-4.5z"/><path d="M3 12l9 4.5 9-4.5"/><path d="M3 16.5L12 21l9-4.5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17h.01"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
+  <symbol id="i-save" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 17v2.5A1.5 1.5 0 0 0 5.5 21h13a1.5 1.5 0 0 0 1.5-1.5V17"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4.5h6V7M6.5 7l1 13h9l1-13M10 11v6M14 11v6"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z"/></symbol>
+  <symbol id="i-video" viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10.5l5-3v9l-5-3"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.8"/><path d="M21 16l-5-5-9 9"/></symbol>
+</svg>
+
+<div id="app">
+<header>
+  <h1>Dupe<span>Finder</span></h1>
+  <div class="seg" id="mode">
+    <button data-m="exact" class="on" title="Bytegleiche Dateien (SHA-256)">Identische Dateien</button>
+    <button data-m="similar" title="Optisch gleiche Bilder (pHash)">Ähnliche Bilder</button>
+  </div>
+  <label id="thr" class="mut">Toleranz <input type="range" min="0" max="16" value="6" id="thrv"> <b id="thrl" style="color:var(--fg)">6</b></label>
+  <div class="grow"></div>
+  <button class="hbtn" id="trashBtn" onclick="openTrash('')"><svg><use href="#i-trash"/></svg>Papierkorb <span class="cnt" id="trashCnt">0</span></button>
+  <div class="saved" id="saved" style="display:none"></div>
+  <div id="prog"><span id="ptxt">bereit</span><div id="bar"><i></i></div></div>
+  <button class="pri" id="go" disabled>Suche starten</button>
+</header>
+
+<aside>
+  <div class="shead"><span>Speicherorte</span><span><button class="link" onclick="manualRefresh()" data-tip-always data-tip="Verzeichnisbaum neu einlesen (passiert sonst automatisch jede Minute)">↻ neu laden</button> · <button class="link" onclick="collapseAll()">alle zuklappen</button></span></div>
+  <div id="tree"></div>
+  <div id="selbox">
+    <div class="shead" style="padding:10px 4px 2px"><span>Auswahl</span><button class="link" onclick="clearSelection()">alle abwählen</button></div>
+    <div id="chips"></div>
+    <div class="switch off" id="crossSw" onclick="toggleCross()"><div class="tg" id="crossTg"></div>
+      <div>Nur Treffer <b>zwischen</b> den Ordnern<br><span class="mut" style="font-size:11.5px">Duplikate innerhalb eines Ordners ignorieren</span></div></div>
+    <div class="switch" id="idxSw" onclick="toggleOpt('useIndex')"><div class="tg" id="idxTg"></div>
+      <div>Mit <b>Index</b> abgleichen<br><span class="mut" style="font-size:11.5px">auch früher gescannte Dateien außerhalb der Auswahl finden</span></div></div>
+    <div class="switch" id="okSw" onclick="toggleOpt('outsideKeep')"><div class="tg" id="okTg"></div>
+      <div>Kopien außerhalb <b>behalten</b><br><span class="mut" style="font-size:11.5px">Auto-Auswahl markiert dann alle Kopien in der Auswahl</span></div></div>
+    <div class="shead" style="padding:12px 4px 2px"><span>Behalten-Regel</span><button class="link" onclick="S.keepPrefs=[];prefsChanged()">zurücksetzen</button></div>
+    <div id="prefs"></div>
+    <label class="tie">Bei mehreren Kopien im Ordner:
+      <select id="tieSel" onchange="S.keepTie=this.value;store.set('keepTie',S.keepTie);prefsChanged()">
+        <option value="res">höchste Auflösung</option><option value="oldest">älteste Datei</option><option value="shortest">kürzester Pfad</option></select></label>
+  </div>
+</aside>
+
+<section id="content">
+  <div class="tool" id="tool"></div>
+  <div id="list"></div>
+</section>
+
+<footer id="foot"><span class="i"><svg><use href="#i-info"/></svg></span><span id="fmsg"></span><span class="right" id="fright"></span></footer>
+</div>
+
+<div id="tip"></div><div id="toast"></div>
+<div id="lb">
+  <div id="lbtop"><button class="back" onclick="lbClose()"><svg><use href="#i-back"/></svg>Zurück</button><span class="info" id="lbtopinfo"></span><span id="lbpage"></span><div class="grow"></div><span id="lbmark" class="mut"></span><button id="lbpin" onclick="pinAll()" title="Infos aller sichtbaren Dateien fest anzeigen">Alle Infos</button><button id="lbdet" onclick="toggleDetails()">Details</button><button class="danger lbdel" id="lbdel" onclick="lbTrashMarked()" disabled>Markierte in Papierkorb</button></div>
+  <div id="lbimgs"></div>
+  <div id="lbbar"><button onclick="lbGo(-1)">◀</button><span id="lbinfo"></span><button onclick="lbGo(1)">▶</button>
+  <div class="grow"></div><span>← → / Esc</span><button onclick="lbClose()">Schließen</button></div></div>
+
+<script>
+const S={keepPrefs:[],keepTie:"res",rsort:"wasted",rfilter:"all",rshown:40,useIndex:true,outsideKeep:true,lbPins:new Set(),sel:[],cross:false,mode:"exact",open:new Set([""]),kids:new Map(),cwd:null,ls:null,result:null,marked:new Set(),lb:-1,running:false};
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const J=v=>esc(JSON.stringify(v));
+const enc=encodeURIComponent;
+const ic=(n,c="")=>`<svg class="${c}"><use href="#i-${n}"/></svg>`;
+const fmt=b=>{if(b==null)return"";const u=["B","kB","MB","GB","TB"];let i=0;while(b>=1000&&i<4){b/=1000;i++}return b.toFixed(i?1:0)+" "+u[i]};
+const kindOf=f=>f.kind||(f.is_image?"image":"file");
+const PLAY=/\.(mp4|m4v|mov|webm)$/i;
+const dur=s=>{if(!s)return"";s=Math.round(s);const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=String(s%60).padStart(2,"0");return h?`${h}:${String(m).padStart(2,"0")}:${x}`:`${m}:${x}`};
+const dt=t=>t?new Date(t*1000).toLocaleString("de-DE",{dateStyle:"short",timeStyle:"short"}):"";
+const api=async(u,body)=>{const r=await fetch(u,body?{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body),cache:"no-store"}:{cache:"no-store"});
+  if(!r.ok)throw new Error((await r.json().catch(()=>({}))).detail||r.statusText);return r.json()};
+const COLORS=6, rc=i=>`var(--c${(i%COLORS)+1})`;
+const disp=p=>p===""?"/data (alle Laufwerke)":"/data/"+p;
+const isUnder=(p,root)=>root===""||p===root||p.startsWith(root+"/");
+const store={get(k,d){try{return JSON.parse(localStorage.getItem("df."+k))??d}catch{return d}},set(k,v){try{localStorage.setItem("df."+k,JSON.stringify(v))}catch{}}};
+
+/* ================= Baum ================= */
+async function loadKids(p){if(S.kids.has(p))return S.kids.get(p);
+  const r=await api("/api/ls?path="+enc(p));S.kids.set(p,r.dirs);return r.dirs}
+
+function stateOf(p){
+  const i=S.sel.indexOf(p); if(i>=0)return{st:"on",idx:i};
+  const anc=S.sel.findIndex(s=>s!==p&&isUnder(p,s)); if(anc>=0)return{st:"inh",idx:anc};
+  if(S.sel.some(s=>s!==p&&isUnder(s,p)))return{st:"part"};
+  return{st:"off"}}
+
+function nodeHTML(n,depth){
+  const p=n.path,{st,idx}=stateOf(p),open=S.open.has(p),top=depth===1,root=depth===0;
+  const hasKids=root||n.has_dirs||(top&&n.trash_count);
+  const icon=root?ic("stack","ico drive"):top?ic("drive","ico drive"):ic(open?"folder-open":"folder","ico");
+  const color=idx!=null?`--rc:${rc(idx)}`:"";
+  const usage=top&&n.total?`<span class="usage${n.used/n.total>.85?" hi":""}" title="${fmt(n.used)} von ${fmt(n.total)} belegt"><i style="width:${Math.round(n.used/n.total*100)}%"></i></span>`:"";
+  const tip=st==="inh"?`title="Bereits enthalten über ${esc(disp(S.sel[idx]))}"`:"";
+  let h=`<div class="node${st==="on"?" sel":""}${st==="inh"?" inh":""}${S.cwd===p?" cur":""}" style="padding-left:${6+depth*16}px;${color}" ${tip}
+      onclick='openDir(${J(p)})'>
+    <span class="chev${open?" open":""}${hasKids?"":" none"}" onclick='event.stopPropagation();toggleOpen(${J(p)})'>${ic("chev")}</span>
+    <span class="cb ${st}" onclick='event.stopPropagation();toggleSel(${J(p)})'>${ic("check")}</span>
+    ${icon}<span class="name" data-tip="${esc(disp(p))}">${esc(root?"/data – alle Laufwerke":n.name)}</span>${idxBadge(n)}${usage}
+    ${top&&n.trash_count?`<span class="tbadge" onclick='event.stopPropagation();openTrash(${J(p)})' data-tip-always data-tip="${n.trash_count} Dateien aus ${esc(disp(p))} im Papierkorb">${ic("trash")} ${n.trash_count}</span>`:""}
+    ${st==="on"?`<span class="num">${idx+1}</span>`:""}
+    ${root?"":prefStar(p)}
+  </div>`;
+  if(open&&top&&n.trash_count)h+=`<div class="node trashnode${S.trash&&S.trash.root===p?" cur":""}" style="padding-left:${6+(depth+1)*16}px" onclick='openTrash(${J(p)})'>
+      <span class="chev none"></span><span class="cb" style="visibility:hidden"></span>${ic("trash","ico")}<span class="name">Papierkorb</span><span class="tbadge">${n.trash_count}</span></div>`;
+  if(open&&S.kids.has(p))for(const c of S.kids.get(p))h+=nodeHTML(c,depth+1);
+  return h}
+
+function idxBadge(n){const x=n.idx;if(!x)return"";const d=dtl(x.ts);
+  const tip=x.state==="ok"?`Im Index · Scan vom ${d} · ${x.count.toLocaleString("de-DE")} Dateien.\nSeitdem wurden in diesem Ordner keine Dateien hinzugefügt oder gelöscht.\n(Geänderte Inhalte in Unterordnern erkennt erst der nächste Scan.)`
+    :x.state==="changed"?`Im Index · Scan vom ${d} · ${x.count.toLocaleString("de-DE")} Dateien.\nSeitdem wurden in diesem Ordner Dateien hinzugefügt oder gelöscht – neu scannen empfohlen.`
+    :`Teilweise im Index: einzelne Unterordner wurden gescannt (zuletzt ${d}).`;
+  return `<span class="ibadge ${x.state}" data-tip-always data-tip="${esc(tip)}">I</span>`}
+function prefStar(p){const i=S.keepPrefs.indexOf(p);
+  return i>=0?`<span class="star on" onclick='event.stopPropagation();togglePref(${J(p)})' data-tip-always data-tip="Original-Ordner Nr. ${i+1}: Kopien hier werden bevorzugt behalten. Klicken zum Entfernen.">★${i+1}</span>`
+    :`<span class="star" onclick='event.stopPropagation();togglePref(${J(p)})' data-tip-always data-tip="Als Original-Ordner festlegen: Kopien aus diesem Ordner werden in allen Gruppen bevorzugt behalten">☆</span>`}
+let treeBusy=false;
+async function refreshTree(quiet){if(treeBusy)return;treeBusy=true;
+  try{const before=JSON.stringify([...S.kids]),kids=new Map(),gone=[];
+    for(const p of ["",...[...S.open].filter(x=>x!=="")]){
+      try{kids.set(p,(await api("/api/ls?path="+enc(p))).dirs)}catch{gone.push(p)}}
+    gone.forEach(p=>S.open.delete(p));S.kids=kids;
+    // Auswahl, Original-Ordner und geöffneter Ordner: existieren sie noch?
+    const check=[...new Set([...S.sel,...S.keepPrefs,S.cwd].filter(x=>x))];
+    const ex=check.length?await api("/api/exists",{paths:check}):{};
+    const lostSel=S.sel.filter(p=>p&&ex[p]===false),lostPref=S.keepPrefs.filter(p=>ex[p]===false);
+    if(lostSel.length){S.sel=S.sel.filter(p=>!lostSel.includes(p));selChanged()}
+    if(lostPref.length){S.keepPrefs=S.keepPrefs.filter(p=>!lostPref.includes(p));store.set("keepPrefs",S.keepPrefs);renderPrefs()}
+    if(lostSel.length||lostPref.length)toast(`Ordner existiert nicht mehr, aus Auswahl entfernt: ${[...lostSel,...lostPref].map(disp).join(", ")}`);
+    if(S.cwd&&ex[S.cwd]===false){let p=S.cwd;while(p&&!(await api("/api/exists",{paths:[p]}))[p])p=p.includes("/")?p.slice(0,p.lastIndexOf("/")):"";
+      toast(`Ordner ${disp(S.cwd)} existiert nicht mehr`);if(!S.result&&!S.trash)openDir(p);else S.cwd=p}
+    else if(quiet&&S.ls&&!S.result&&!S.trash&&S.lb<0){   // offenen Ordner still aktualisieren
+      const n=await api("/api/ls?path="+enc(S.ls.path)),sig=d=>JSON.stringify([d.dirs.map(x=>x.name),d.files.map(f=>[f.name,f.size,f.mtime])]);
+      if(sig(n)!==sig(S.ls)){const y=$("content").scrollTop;S.ls=n;show();$("content").scrollTop=y}}
+    if(!quiet||gone.length||JSON.stringify([...S.kids])!==before)renderTree();
+    store.set("open",[...S.open])}
+  finally{treeBusy=false}}
+async function manualRefresh(){await refreshTree();try{renderSaved(await api("/api/stats"))}catch{}toast("Verzeichnisbaum neu eingelesen")}
+setInterval(()=>{if(document.visibilityState==="visible"&&!S.running)refreshTree(true).then(()=>api("/api/stats").then(renderSaved)).catch(()=>{})},60000);
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&!S.running)refreshTree(true).catch(()=>{})});
+function renderTree(){const t=$("tree"),y=t.scrollTop;t.innerHTML=nodeHTML({path:"",name:""},0);t.scrollTop=y}
+async function toggleOpen(p){if(S.open.has(p))S.open.delete(p);else{await loadKids(p);S.open.add(p)}renderTree();store.set("open",[...S.open])}
+function collapseAll(){S.open=new Set([""]);renderTree();store.set("open",[""])}
+
+/* ================= Auswahl ================= */
+function toggleSel(p){
+  const i=S.sel.indexOf(p);
+  if(i>=0)S.sel.splice(i,1);
+  else{
+    if(S.sel.some(s=>isUnder(p,s)))return;          // schon über Elternordner enthalten
+    S.sel=S.sel.filter(s=>!isUnder(s,p));            // Unterordner gehen im neuen auf
+    S.sel.push(p)}
+  selChanged()}
+function clearSelection(){S.sel=[];selChanged()}
+function toggleCross(){S.cross=!S.cross;selChanged()}
+function toggleOpt(k){S[k]=!S[k];store.set(k,S[k]);selChanged();renderPrefs();if(S.result)show()}
+function selChanged(){store.set("sel",S.sel);store.set("cross",S.cross);renderTree();renderChips();renderFoot()}
+function renderChips(){
+  $("chips").innerHTML=S.sel.length?S.sel.map((p,i)=>`<div class="chip" style="--rc:${rc(i)}"><span class="num">${i+1}</span>
+      <span class="p" data-tip="${esc(disp(p))}"><bdi>${esc(disp(p))}</bdi></span><span class="x" onclick='toggleSel(${J(p)})'>${ic("x")}</span></div>`).join("")
+    :`<div class="empty-sel">Noch nichts ausgewählt – Kästchen im Baum anklicken.</div>`;
+  $("crossSw").classList.toggle("off",S.sel.length<2);
+  $("crossTg").classList.toggle("on",S.cross&&S.sel.length>=2);
+  $("idxTg").classList.toggle("on",S.useIndex);$("okTg").classList.toggle("on",S.outsideKeep);
+  $("okSw").classList.toggle("off",!S.useIndex);
+  $("go").disabled=!S.sel.length||S.running}
+
+/* ================= Statuszeile ================= */
+function rname(i){return `<span class="r" style="color:${rc(i)}">${esc(disp(S.sel[i]))}</span>`}
+function describe(){
+  const what=S.mode==="exact"?"identische Dateien":`ähnliche Bilder (Toleranz ${$("thrv").value})`;
+  const n=S.sel.length;
+  if(!n)return{warn:true,t:"Keine Auswahl. Links ein Laufwerk oder einen Ordner anhaken – bei einem wird darin gesucht, bei mehreren über alle zusammen."};
+  if(n===1)return{t:`Sucht <b>${what}</b> nur innerhalb von ${rname(0)} – inklusive aller Unterordner.`};
+  const list=S.sel.map((_,i)=>rname(i));
+  const joined=list.length===2?list.join(" und "):list.slice(0,-1).join(", ")+" und "+list.at(-1);
+  if(S.cross)return{t:`Sucht <b>${what}</b> nur <b>zwischen</b> ${joined}: Duplikate innerhalb eines einzelnen Ordners werden ignoriert.`};
+  return{t:`Sucht <b>${what}</b> in ${joined} gemeinsam: Duplikate innerhalb jedes Ordners <b>und</b> zwischen den Ordnern.`}}
+function renderFoot(){const d=describe();
+  if(!d.warn)d.t+=" "+keepRuleText();
+  if(!d.warn&&S.useIndex)d.t+=` Zusätzlich Abgleich mit <b>${(S.indexN||0).toLocaleString("de-DE")}</b> bekannten Dateien im Index (außerhalb der Auswahl = „auch schon gefunden in“).`;$("foot").classList.toggle("warn",!!d.warn);
+  $("foot").querySelector(".i").innerHTML=ic(d.warn?"alert":"info");$("fmsg").innerHTML=d.t;$("fmsg").title=$("fmsg").textContent}
+
+/* ================= Modus ================= */
+document.querySelectorAll("#mode button").forEach(b=>b.onclick=()=>{S.mode=b.dataset.m;
+  document.querySelectorAll("#mode button").forEach(x=>x.classList.toggle("on",x===b));
+  $("thr").style.display=S.mode==="similar"?"flex":"none";renderFoot()});
+$("thrv").oninput=e=>{$("thrl").textContent=e.target.value;renderFoot()};
+
+/* ================= Job ================= */
+$("go").onclick=async()=>{try{
+  await api("/api/compare",{paths:S.sel,cross:S.cross&&S.sel.length>1,mode:S.mode,threshold:+$("thrv").value,use_index:S.useIndex});
+  S.marked.clear();S.runSel=[...S.sel];poll()}catch(e){alert(e.message)}};
+async function poll(){let s;try{s=await api("/api/status")}catch{return setTimeout(poll,3000)}
+  S.running=s.state==="running";renderChips();
+  const pct=s.total?Math.round(s.done/s.total*100):0;
+  $("bar").firstChild.style.width=(S.running?(s.total?pct:12):s.state==="done"?100:0)+"%";
+  $("ptxt").textContent=S.running?`${s.phase}: ${s.done.toLocaleString("de-DE")}${s.total?" / "+s.total.toLocaleString("de-DE"):""}`
+    :s.state==="error"?"Fehler: "+s.msg:s.state==="done"?"fertig":"bereit";
+  if(S.running)return setTimeout(poll,700);
+  if(S.maint&&s.kind==="maint"){S.maint=false;toast(s.state==="error"?"Fehler: "+s.msg:s.msg);
+    try{renderSaved(await api("/api/stats"))}catch{}
+    refreshTree()}
+  if(s.state==="done"&&s.has_result){
+    if(S.runSel){S.runSel=null;S.result=await api("/api/result");S.rshown=40;show();refreshTree();api("/api/stats").then(renderSaved).catch(()=>{})}
+    else if(!S.lastResult){S.lastResult=await api("/api/result");if(!S.result)show()}}}
+
+/* ================= Inhalt ================= */
+async function openDir(p){S.cwd=p;S.result=null;S.trash=null;
+  if(!S.open.has(p)&&p!==""){await loadKids(p);S.open.add(p)}
+  renderTree();S.ls=await api("/api/ls?path="+enc(p));show()}
+function crumbHTML(p){const parts=p?p.split("/"):[];let acc="",h=`<a onclick="openDir('')">/data</a>`;
+  parts.forEach((x,i)=>{acc+=(acc?"/":"")+x;h+=` / `+(i===parts.length-1?`<b>${esc(x)}</b>`:`<a onclick='openDir(${J(acc)})'>${esc(x)}</a>`)});return h}
+
+function show(){const L=$("list"),T=$("tool");
+  if(S.trash)return showTrash();
+  if(!S.result){
+    const d=S.ls;if(!d){T.innerHTML="";L.innerHTML="";return}
+    const {st}=stateOf(d.path);
+    T.innerHTML=`<span class="crumb">${crumbHTML(d.path)}</span><span class="mut" style="font-size:12px">${d.dirs.length} Ordner · ${d.files.length} Dateien</span><div class="grow"></div>
+      ${S.lastResult?`<button onclick="S.trash=null;S.result=S.lastResult;show()">Zum Ergebnis</button>`:""}
+      <button onclick='toggleSel(${J(d.path)})' ${st==="inh"?"disabled":""}>${st==="on"?"Ordner abwählen":"Ordner auswählen"}</button>`;
+    S.lsRows=[...d.dirs.map(x=>({dir:1,x})),...d.files.map((f,i)=>({dir:0,x:f,i}))];
+    L.innerHTML=(d.trash_here?`<div class="banner">${ic("trash")}<span><b>${d.trash_here}</b> Datei${d.trash_here>1?"en":""} aus ${d.path?"diesem Ordner":"/data"} liegen im Papierkorb</span><button onclick='openTrash(${J(d.path)})'>Anzeigen</button></div>`:"")
+      +`<table class="br"><tbody id="lsrows"></tbody></table><div id="lsmore"></div>`+(S.lsRows.length?"":`<div class="empty">Ordner ist leer.</div>`);
+    S.lsShown=0;appendRows();observeMore("lsmore",appendRows);
+    return}
+  S.lastResult=S.result;const R=S.result;
+  T.innerHTML=`<span><b>${R.groups.length}</b> Gruppen · ${R.scanned.toLocaleString("de-DE")} Dateien geprüft · <b>${fmt(R.wasted)}</b> doppelt belegt${R.outside_files?` · <span style="color:#aab4c4">↗ ${R.outside_files} aus dem Index</span>`:""}</span><div class="grow"></div>
+    <span id="markinfo"></span>
+    <button onclick="autoSel()" title="Je Gruppe bleibt die Datei stehen, die nach der Behalten-Regel (links unten) das Original ist – alle anderen Kopien in der Auswahl werden markiert">Auto-Auswahl</button>
+    <button onclick="S.marked.clear();show()">Markierung aufheben</button>
+    <button class="danger" id="del" onclick="doTrash()" disabled>In Papierkorb (0)</button>`;
+  const V=viewList();S.view=V;
+  const ctl=`<div class="rctl"><label>Sortierung <select onchange="setView('rsort',this.value)">
+      ${[["wasted","Einsparung"],["size","Dateigröße"],["count","Anzahl Kopien"],["date","Datum (neueste)"],["path","Pfad A–Z"]].map(([v,l])=>`<option value="${v}"${S.rsort===v?" selected":""}>${l}</option>`).join("")}</select></label>
+    <label>Filter <select onchange="setView('rfilter',this.value)">
+      ${[["all","alle Gruppen"],["image","Bilder"],["video","Videos"],["file","Dokumente & Sonstige"],["idx","nur mit Index-Treffern"]].map(([v,l])=>`<option value="${v}"${S.rfilter===v?" selected":""}>${l}</option>`).join("")}</select></label>
+    <span class="mut">${V.length===R.groups.length?`${V.length} Gruppen`:`${V.length} von ${R.groups.length} Gruppen`}</span></div>`;
+  if(!R.groups.length){L.innerHTML=`<div class="empty">Keine Duplikate gefunden.</div>`;updDel();return}
+  L.innerHTML=ctl+`<div id="rgroups"></div><div id="rmore"></div>`;
+  S.rshown=Math.max(40,Math.min(S.rshown,V.length));appendGroups(0,S.rshown);
+  observeMore("rmore",()=>{if(S.rshown<S.view.length){const a=S.rshown;S.rshown=Math.min(a+40,S.view.length);appendGroups(a,S.rshown)}});
+  updDel()}
+function groupHTML(gi){const R=S.result,g=R.groups[gi];
+  return `<div class="group"><div class="ghead"><b style="color:var(--fg)">${g.files.length} Dateien</b>
+     <span>${fmt(g.files[0].size)} je Datei</span><span>${fmt(g.wasted)} einsparbar</span>${g.outside?`<span class="outcnt">↗ ${g.outside} außerhalb der Auswahl</span>`:""}</div>
+     <div class="files">${g.files.map((f,fi)=>tile(f,gi,fi,R)).join("")}</div></div>`}
+function appendGroups(a,b){const box=$("rgroups");if(!box)return;box.insertAdjacentHTML("beforeend",S.view.slice(a,b).map(groupHTML).join(""));
+  const m=$("rmore");if(m)m.innerHTML=b<S.view.length?`<div class="empty">… weitere ${S.view.length-b} Gruppen werden beim Scrollen geladen</div>`:""}
+let moreObs=null;
+function observeMore(id,fn){if(moreObs)moreObs.disconnect();const el=$(id);if(!el)return;
+  moreObs=new IntersectionObserver(es=>{if(es.some(e=>e.isIntersecting))fn()},{root:$("content"),rootMargin:"600px"});moreObs.observe(el)}
+function viewList(){const G=S.result.groups;let V=G.map((_,i)=>i);
+  const f=S.rfilter;if(f==="idx")V=V.filter(i=>G[i].outside);else if(f!=="all")V=V.filter(i=>kindOf(G[i].files[0])===f);
+  const k={wasted:i=>-G[i].wasted,size:i=>-G[i].files[0].size,count:i=>-G[i].files.length,date:i=>-Math.max(...G[i].files.map(x=>x.mtime||0)),path:i=>G[i].files[0].path.toLowerCase()}[S.rsort]||(i=>i);
+  return V.sort((a,b)=>{const x=k(a),y=k(b);return x<y?-1:x>y?1:a-b})}
+function setView(k,v){S[k]=v;store.set(k,v);S.rshown=40;$("content").scrollTop=0;show()}
+function rowHTML(r){if(r.dir)return `<tr><td><a href="#" onclick='event.preventDefault();openDir(${J(r.x.path)})'>${ic("folder","ico")}${esc(r.x.name)}</a></td><td class="r"></td><td class="r"></td><td class="r"></td></tr>`;
+  const f=r.x;return `<tr class="frow" onclick="folderLbOpen(${r.i})"><td><span class="fl">${kindOf(f)==="image"?ic("image","ico"):fileIcon(f.name,"mini")}${esc(f.name)}</span></td>
+    <td class="r">${fmt(f.size)}</td><td class="r">${dt(f.mtime)}</td>
+    <td class="r"><a class="dl" href="/api/download?path=${enc(f.path)}" onclick="event.stopPropagation()" data-tip-always data-tip="Herunterladen">${ic("save")}</a></td></tr>`}
+function appendRows(){const b=$("lsrows");if(!b||S.lsShown>=S.lsRows.length)return;const a=S.lsShown;S.lsShown=Math.min(a+300,S.lsRows.length);
+  b.insertAdjacentHTML("beforeend",S.lsRows.slice(a,S.lsShown).map(rowHTML).join(""));
+  const m=$("lsmore");if(m)m.innerHTML=S.lsShown<S.lsRows.length?`<div class="empty">… weitere ${S.lsRows.length-S.lsShown} Einträge beim Scrollen</div>`:""}
+function rootBadge(f,R){if(f.outside)return `<span class="num out" data-tip-always data-tip="außerhalb der Auswahl – aus dem Index">↗</span>`;
+  return R.roots.length>1?`<span class="num" data-tip-always data-tip="${esc(disp(R.roots[f.root-1]))}">${f.root}</span>`:""}
+const fcol=f=>f.outside?"#8a94a6":rc(f.root-1);
+function tile(f,gi,fi,R){const c=S.marked.has(f.path),g=R.groups[gi];
+  return `<div class="f${c?" chk":""}${f.outside?" out":""}" data-p="${esc(f.path)}" style="--rc:${fcol(f)}"><input type="checkbox" ${c?"checked":""} onchange='mark(${J(f.path)},this)'>
+   ${rootBadge(f,R)}${fi===keepIdx(g)?`<span class="keep">behalten</span>`:""}
+   ${thumbHTML(f,gi)}
+   <div class="meta">${g.outside?srcLabel(f):""}<div class="p" data-tip="${esc(f.path)}">${esc(f.path)}</div><div>${fmt(f.size)}${f.width?` · ${f.width}×${f.height}`:""}${f.duration?` · ${dur(f.duration)}`:""}${f.dist!=null?` · Δ ${f.dist}`:""}</div>
+   <div>${dt(f.mtime)} · <a href="/api/download?path=${enc(f.path)}">Download</a></div>${mlineHTML(f)}${hashHTML(f)}</div></div>`}
+const dtl=v=>{if(!v)return"";const d=typeof v==="number"?new Date(v*1000):new Date(v);
+  return isNaN(d)?"":d.toLocaleString("de-DE",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"})};
+function primaryDate(f){const m=f.meta||{};
+  if(m.taken)return["Aufnahme",m.taken];
+  if(m.btime)return["Erstellt",m.btime];
+  return["Geändert",f.mtime]}
+function mlineHTML(f){const m=f.meta||{},[l,v]=primaryDate(f);
+  const shot=[m.aperture,m.shutter].filter(Boolean).map(esc).join(" · ");
+  const extra=[m.camera?`📷 ${esc(m.camera)}`:"",shot,m.gps?"📍":""].filter(Boolean).join(" · ");
+  return `<div class="mline" data-meta="${esc(f.path)}"><i>Metadaten:</i> <b>${l}</b> ${dt(typeof v==="number"?v:new Date(v)/1000)}${extra?" · "+extra:""}</div>`}
+function metaKV(f,full,base){const clean=metaRows(f,full);
+  const NODIFF=["Pfad","Ordner","Original","Im Papierkorb","Gelöscht","Status","Erstellt","Geändert"];
+  const cls=r=>base&&!NODIFF.includes(r[0])&&base.get(r[0])!==plain(r[1])?" diff":"";
+  if(full){ // zweispaltig: Paare bilden
+    const W=["SHA-256","Ort","pHash","Ordner","Software","Hinweis","Original","Im Papierkorb","Typ"];
+    return `<dl class="kv">${clean.map(r=>r?(W.includes(r[0])?`<dt class="wdt${cls(r)}">${r[0]}</dt><dd class="${r[2]} wide${cls(r)}">${r[1]}</dd>`:`<dt class="${cls(r)}">${r[0]}</dt><dd class="${r[2]}${cls(r)}">${r[1]}</dd>`):`<div class="sep"></div>`).join("")}</dl>`}
+  return `<dl class="kv">${clean.map(r=>r?`<dt class="${cls(r)}">${r[0]}</dt><dd class="${r[2]}${cls(r)}">${r[1]}</dd>`:`<div class="sep"></div>`).join("")}</dl>`}
+const plain=h=>String(h).replace(/<[^>]*>/g,"").trim();
+function metaBase(f){return new Map(metaRows(f,true).filter(Boolean).map(r=>[r[0],plain(r[1])]))}
+function metaRows(f,full){const m=f.meta||{},rows=[],sep=()=>rows.push(null);
+  const add=(k,v,cls="")=>{if(v!==undefined&&v!==null&&v!=="")rows.push([k,v,cls])};
+  if(f.trash_path){add("Gelöscht",`${dtl(f.ts)} <span class="src">in Papierkorb</span>`);if(full)add("Original",`/data/${esc(f.path)}`);add("Im Papierkorb",esc(f.trash_path),full?"":"");sep()}
+  add("Aufnahme",m.taken?`${dtl(m.taken)} <span class="src">${kindOf(f)==="video"?"Video-Tag":"EXIF"}</span>`:"");
+  add("Erstellt",m.btime?`${dtl(m.btime)} <span class="src">Datei</span>`:"");
+  add("Geändert",`${dtl(f.mtime)} <span class="src">mtime</span>`);
+  if(full)add("Status",m.ctime?`${dtl(m.ctime)} <span class="src">ctime</span>`:"");
+  if(full&&m.exif_date)add("EXIF-Datum",`${dtl(m.exif_date)} <span class="src">bearbeitet</span>`);
+  sep();
+  if(kindOf(f)==="file"||kindOf(f)==="audio")add("Typ",`${esc(ftype(f.path).label)} <span class="src">.${esc(extOf(f.path)||"–")}</span>`);
+  add("Größe",`${fmt(f.size)}${full?` <span class="src">${f.size.toLocaleString("de-DE")} Bytes</span>`:""}`);
+  if(f.width)add("Auflösung",`${f.width} × ${f.height}${kindOf(f)==="image"?` <span class="src">${(f.width*f.height/1e6).toFixed(1)} MP</span>`:""}`);
+  if(f.duration)add("Dauer",dur(f.duration));
+  add("Codec",esc(m.codec||""));if(full)add("Bitrate",esc(m.bitrate||""));
+  if(m.camera||m.shutter||m.aperture)sep();
+  add("Kamera",esc(m.camera||""));add("Objektiv",esc(m.lens||""));
+  add("Verschluss",esc(m.shutter||""));add("Blende",esc(m.aperture||""));add("ISO",esc((m.iso||"").replace("ISO ","")));
+  add("Brennweite",[m.focal,m.focal35?`<span class="src">${esc(m.focal35)}</span>`:""].filter(Boolean).join(" "));
+  if(full)add("Blitz",m.flash?"ausgelöst":"");
+  if(!m.shutter&&!m.aperture)add("Belichtung",esc(m.exposure||""));
+  if(m.gps){const g=m.gps,ll=`${g.lat.toFixed(5)}, ${g.lon.toFixed(5)}`;
+    add("Ort",full?`<a href="https://www.openstreetmap.org/?mlat=${g.lat}&mlon=${g.lon}#map=16/${g.lat}/${g.lon}" target="_blank" rel="noopener">${ll}</a>${g.alt!=null?` <span class="src">${g.alt} m</span>`:""}`:ll)}
+  if(full){add("Format",esc(m.format||""));add("Software",esc(m.software||""))}
+  if(f.outside)add("Ordner",`<span style="color:#aab4c4">außerhalb der Auswahl</span> <span class="src">Index${f.seen?`, gesehen ${dtl(f.seen)}`:""}</span>`);
+  else if(S.result&&S.result.roots.length>1&&f.root)add("Ordner",`<span style="color:${rc(f.root-1)}">${f.root} · ${esc(disp(S.result.roots[f.root-1]))}</span>`);
+  if(!full&&!f.trash_path)add("Pfad",esc(f.path));
+  if(f.sha256)add("SHA-256",esc(full?f.sha256:f.sha256.slice(0,16)+"…"),"mono");
+  if(f.phash&&S.result&&S.result.mode==="similar")add("pHash",`${esc(f.phash)} · Δ ${f.dist}`,"mono");
+  if(m.error)add("Hinweis",esc(m.error));
+  // Trenner am Anfang/Ende/doppelt entfernen
+  return rows.filter((r,i,a)=>r||(i>0&&a[i-1]&&i<a.length-1))}
+
+/* Schwebende Infos */
+const tip=$("tip");let tipT=null,tipEl=null;
+function fileByPath(p){if(!S.result)return null;if(!S.fmap||S.fmapR!==S.result){S.fmap=new Map();S.fmapR=S.result;
+  for(const g of S.result.groups)for(const f of g.files)S.fmap.set(f.path,f)}return S.fmap.get(p)}
+function anyFile(p){return fileByPath(p)||(S.trash&&S.trash.items.find(i=>i.trash_path===p))||(S.lbMode==="folder"&&S.ls&&S.ls.files.find(f=>f.path===p))}
+document.addEventListener("mouseover",e=>{const el=e.target.closest("[data-tip],[data-meta],[data-lbmeta]");if(el===tipEl)return;
+  hideTip();if(!el)return;tipEl=el;
+  tipT=setTimeout(()=>{
+    if(el.dataset.lbmeta!==undefined){if(S.lbPins.has(el.dataset.lbmeta)&&el.classList.contains("ibtn"))return;
+      const f=anyFile(el.dataset.lbmeta);if(!f)return;
+      const render=()=>{if(tipEl!==el)return;tip.className="card big";
+        tip.innerHTML=`<div style="font-weight:600;margin-bottom:6px;word-break:break-all">${esc(f.path.split("/").pop())}</div>${metaKV(f,true)}`;placeTip(el);tip.classList.add("on")};
+      if(f.trash_path&&!f.meta){tip.className="card";tip.textContent="lade Metadaten …";placeTip(el);tip.classList.add("on");
+        api("/api/meta?path="+enc(f.trash_path)).then(r=>{Object.assign(f,r);render()}).catch(()=>{f.meta={};render()})}
+      else render();return}
+    if(el.dataset.meta!==undefined){const f=fileByPath(el.dataset.meta);if(!f)return;
+      tip.className="card";tip.innerHTML=metaKV(f,false)}
+    else{if(!el.hasAttribute("data-tip-always")&&el.scrollWidth<=el.clientWidth+1&&el.scrollHeight<=el.clientHeight+1)return;
+      tip.className="";tip.textContent=el.dataset.tip}
+    placeTip(el);tip.classList.add("on")},280)});
+document.addEventListener("scroll",hideTip,true);
+
+function hideTip(){clearTimeout(tipT);tip.classList.remove("on");tipEl=null}
+function placeTip(el){const r=el.getBoundingClientRect(),w=tip.offsetWidth,h=tip.offsetHeight,vw=innerWidth,vh=innerHeight;
+  let x=Math.min(Math.max(8,r.left),vw-w-8),y=r.bottom+6;
+  if(y+h>vh-8){y=r.top-h-6;if(y<8){y=Math.max(8,Math.min(vh-h-8,r.top));x=r.right+8+w<vw?r.right+8:Math.max(8,r.left-w-8)}}
+  tip.style.left=x+"px";tip.style.top=y+"px"}
+
+/* Dateityp-Icons */
+const extOf=p=>{const n=p.split("/").pop(),i=n.lastIndexOf(".");return i>0?n.slice(i+1).toLowerCase():""};
+const FT=[
+ ["doc","#3b82f6","Textdokument","doc docx docm dot dotx odt ott fodt rtf pages wpd wps abw"],
+ ["sheet","#22a55b","Tabelle","xls xlsx xlsm xlsb xlt xltx ods ots fods numbers csv tsv"],
+ ["slides","#f07a2a","Präsentation","ppt pptx pptm pps ppsx pot potx odp otp fodp key"],
+ ["pdf","#e5484d","PDF-Dokument","pdf xps oxps"],
+ ["text","#8a94a6","Textdatei","txt md markdown log nfo ini conf cfg toml env srt vtt sub rst"],
+ ["code","#a371f7","Quellcode","py js ts jsx tsx html htm css scss json xml yml yaml c h cpp hpp cs java kt go rs php rb swift sql lua pl r m vue"],
+ ["script","#14b8a6","Skript","sh bash zsh bat cmd ps1 psm1 vbs command"],
+ ["exec","#ef6f4f","Programm / ausführbar","exe msi bin run app apk aab ipa deb rpm dll so dylib jar appimage com sys elf out xapk msix snap flatpakref"],
+ ["archive","#d4a72c","Archiv","zip rar 7z tar gz tgz bz2 tbz xz txz zst lz lzma cab arj z sit sitx war"],
+ ["disk","#64748b","Disk-Image","iso img dmg vhd vhdx vmdk qcow2 vdi toast nrg bin.cue cue ova ovf"],
+ ["audio","#db61a2","Audio","mp3 wav flac aac ogg oga opus m4a wma aiff aif alac mid midi amr ape"],
+ ["font","#9aa3b5","Schrift","ttf otf woff woff2 eot fon pfb"],
+ ["db","#22b8cf","Datenbank","db sqlite sqlite3 mdb accdb dbf frm ibd kdb"],
+ ["mail","#0ea5e9","E-Mail","eml msg pst ost mbox emlx"],
+ ["book","#c2772f","E-Book","epub mobi azw azw3 fb2 cbz cbr djvu lit ibooks"],
+ ["design","#06b6d4","Grafik / Design","psd psb ai eps svg indd sketch xcf fig afdesign afphoto kra cdr"],
+ ["raw","#f59e0b","RAW-Foto","cr2 cr3 crw nef nrw arw srf sr2 dng raf orf rw2 pef srw x3f 3fr mrw"],
+ ["contact","#10b981","Kalender / Kontakt","ics ical vcf vcard"],
+ ["key","#eab308","Schlüssel / Zertifikat","pem crt cer der key p12 pfx gpg asc pgp kdbx kdb csr jks"],
+ ["link","#94a3b8","Verknüpfung","lnk url webloc desktop torrent"],
+ ["cad","#8b5cf6","3D / CAD","stl obj dwg dxf step stp fbx blend 3ds dae gltf glb skp iges igs"],
+ ["video","#8b5cf6","Video","mp4 m4v mov webm mkv avi 3gp mts m2ts wmv mpg mpeg flv"],
+];
+const FTMAP=new Map();FT.forEach(([c,col,lab,exts])=>exts.split(" ").forEach(e=>FTMAP.set(e,{cat:c,col,label:lab})));
+const ftype=p=>FTMAP.get(extOf(p))||{cat:"file",col:"#6b7280",label:"Datei"};
+const GLYPH={
+ doc:'<path d="M14 24h20M14 29h20M14 34h20M14 39h13"/>',
+ text:'<path d="M14 24h20M14 29h16M14 34h20M14 39h10"/>',
+ sheet:'<rect x="13" y="22" width="22" height="19" rx="1"/><path d="M13 28.5h22M13 35h22M20.5 22v19M27.5 22v19"/>',
+ slides:'<rect x="12" y="22" width="24" height="15" rx="1.5"/><path d="M24 37v4M19 41h10"/><path d="M17 33v-3M21 33v-6M25 33v-4M29 33v-7" stroke-width="2.2"/>',
+ pdf:'<path d="M17 40c3-6 6-13 7-18 .6-3-2.6-3-2.2 0 .8 5 6 11 11 13 3 1 3.4-1.8.4-2-5-.3-12 2-16 7"/>',
+ code:'<path d="M19 26l-6 6 6 6M29 26l6 6-6 6M26 24l-4 16"/>',
+ script:'<rect x="12" y="23" width="24" height="18" rx="2"/><path d="M16 29l4 3-4 3M22 36h8"/>',
+ exec:'<circle cx="24" cy="32" r="4"/><path d="M24 22.5v3M24 38.5v3M14.5 32h3M30.5 32h3M17.3 25.3l2.1 2.1M28.6 36.6l2.1 2.1M17.3 38.7l2.1-2.1M28.6 27.4l2.1-2.1"/>',
+ archive:'<path d="M24 20v4M24 26v3M24 31v3"/><rect x="20.5" y="34" width="7" height="7" rx="1.5"/>',
+ disk:'<circle cx="24" cy="32" r="9"/><circle cx="24" cy="32" r="2.2"/>',
+ audio:'<path d="M21 40V25l11-3v15"/><circle cx="18.5" cy="40" r="2.6"/><circle cx="29.5" cy="37" r="2.6"/>',
+ font:'<path d="M14 41l6.5-17 6.5 17M16.5 35h8"/><path d="M30 41v-7a3 3 0 0 1 6 0v7M30 37.5h6"/>',
+ db:'<ellipse cx="24" cy="25" rx="9" ry="3"/><path d="M15 25v13c0 1.7 4 3 9 3s9-1.3 9-3V25M15 31.5c0 1.7 4 3 9 3s9-1.3 9-3"/>',
+ mail:'<rect x="12" y="25" width="24" height="15" rx="1.5"/><path d="M12.5 26l11.5 8 11.5-8"/>',
+ book:'<path d="M24 26c-3-2-7-2-10-1v15c3-1 7-1 10 1 3-2 7-2 10-1V25c-3-1-7-1-10 1zM24 26v15"/>',
+ design:'<path d="M24 22l7 9-7 10-7-10z"/><circle cx="24" cy="31" r="1.6"/><path d="M24 22v7.4"/>',
+ raw:'<rect x="12" y="26" width="24" height="15" rx="2"/><path d="M19 26l2-3h6l2 3"/><circle cx="24" cy="33.5" r="4"/>',
+ contact:'<rect x="13" y="24" width="22" height="17" rx="1.5"/><path d="M13 29h22M18 22v4M30 22v4"/><path d="M18 34h3M23 34h3M28 34h2M18 37.5h3M23 37.5h3"/>',
+ key:'<circle cx="19" cy="31" r="4.5"/><path d="M23.5 31H35M31 31v4M34 31v3"/>',
+ link:'<path d="M21.5 34.5l5-5"/><path d="M19.5 31l-2.5 2.5a3.5 3.5 0 0 0 5 5l2.5-2.5M28.5 33l2.5-2.5a3.5 3.5 0 0 0-5-5L23.5 28"/>',
+ cad:'<path d="M24 22l9 5v10l-9 5-9-5V27z"/><path d="M15 27l9 5 9-5M24 32v10"/>',
+ video:'<rect x="12" y="25" width="17" height="14" rx="2"/><path d="M29 30l7-4v12l-7-4"/>',
+ file:'',
+};
+function fileIcon(p,cls=""){const t=ftype(p),e=(extOf(p)||"?").toUpperCase().slice(0,6),fs=[9,9,9,9,7.6,6.4,5.6][e.length];
+  return `<svg class="ficon ${cls}" viewBox="0 0 48 60" style="--fc:${t.col}">
+    <path d="M6 3h25l11 11v41a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" fill="#262b35" stroke="${t.col}" stroke-width="1.6"/>
+    <path d="M31 3v9a2 2 0 0 0 2 2h9" fill="none" stroke="${t.col}" stroke-width="1.6"/>
+    <g fill="none" stroke="${t.col}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${GLYPH[t.cat]||""}</g>
+    <rect x="4" y="45" width="38" height="12" rx="2" fill="${t.col}"/>
+    <text x="23" y="54" text-anchor="middle" font-size="${fs}" font-weight="700" fill="#fff" font-family="system-ui,sans-serif" letter-spacing=".3">${esc(e)}</text></svg>`}
+
+function hashHTML(f){
+  if(S.result&&S.result.mode==="similar"&&f.phash)return `<div class="hash" data-tip-always data-tip="pHash ${esc(f.phash)} – Hamming-Abstand zur ersten Datei: ${f.dist}"><i>pHash</i>${esc(f.phash)}</div>`;
+  if(f.sha256)return `<div class="hash" data-tip-always data-tip="SHA-256 ${esc(f.sha256)}"><i>SHA-256</i>${esc(f.sha256.slice(0,10))}…${esc(f.sha256.slice(-6))}</div>`;
+  return ""}
+function thumbHTML(f,gi){const k=kindOf(f),u=`/api/thumb?path=${enc(f.path)}`;
+  if(k==="image")return `<div class="th" onclick="lbOpen(${gi},0)" style="background-image:url('${u}')"></div>`;
+  if(k==="video")return `<div class="th" onclick="lbOpen(${gi},0)" style="background-image:url('${u}')"><span class="play">${ic("play")}</span>${f.duration?`<span class="dur">${dur(f.duration)}</span>`:""}</div>`;
+  const pdf=extOf(f.path)==="pdf"?`<img class="pdfth" src="${u}" loading="lazy" onerror="this.remove()">`:"";
+  return `<div class="th fth" onclick="lbOpen(${gi},0)">${fileIcon(f.path)}${pdf}</div>`}
+function mark(p,el){setMark(p,el.checked)}
+function setMark(p,on){on?S.marked.add(p):S.marked.delete(p);
+  document.querySelectorAll(`[data-p="${CSS.escape(p)}"]`).forEach(x=>{x.classList.toggle("chk",on);const i=x.querySelector("input");if(i)i.checked=on});
+  updDel()}
+function markStats(){let bytes=0,all=0;const R=S.result;if(!R)return{bytes,all};
+  for(const g of R.groups){let m=0;for(const f of g.files)if(S.marked.has(f.path)){bytes+=f.size;m++}if(m&&m===g.files.length)all++}
+  return{bytes,all}}
+function updDel(){const {bytes,all}=markStats(),n=S.marked.size;
+  const txt=n?`<b>${n}</b> markiert · <b>${fmt(bytes)}</b> werden frei${all?` <span class="warn" title="In ${all} Gruppe(n) sind alle Kopien markiert – es bliebe keine Datei übrig">⚠ ${all} Gruppe${all>1?"n":""} komplett markiert</span>`:""}`:"";
+  const mi=$("markinfo");if(mi)mi.innerHTML=txt;$("lbmark").innerHTML=txt;
+  const ld=$("lbdel");ld.disabled=!n;ld.textContent=n?`Markierte in Papierkorb (${n})`:"Markierte in Papierkorb";
+  const b=$("del");if(!b)return;b.disabled=!n;b.textContent=`In Papierkorb (${n})`}
+function fileDate(f){const m=f.meta||{};if(m.taken){const d=new Date(m.taken)/1000;if(!isNaN(d))return d}return Math.min(m.btime||Infinity,f.mtime||Infinity)}
+function tieBest(F,c){const key={res:i=>[-(F[i].width||0)*(F[i].height||0),F[i].path.length,F[i].path],
+    oldest:i=>[fileDate(F[i]),F[i].path.length,F[i].path],shortest:i=>[F[i].path.length,F[i].path]}[S.keepTie]||(i=>[i]);
+  const cmp=(a,b)=>{for(let k=0;k<a.length;k++){if(a[k]<b[k])return -1;if(a[k]>b[k])return 1}return 0};
+  return c.slice().sort((a,b)=>cmp(key(a),key(b)))[0]}
+function keepIdx(g){const F=g.files,all=F.map((_,i)=>i);
+  for(const p of S.keepPrefs){const c=all.filter(i=>isUnder(F[i].path,p));if(c.length)return tieBest(F,c)}   // 1. Original-Ordner
+  if(S.outsideKeep){const c=all.filter(i=>F[i].outside);if(c.length)return tieBest(F,c)}                     // 2. Kopie außerhalb
+  const ins=all.filter(i=>!F[i].outside);if(!ins.length)return tieBest(F,all);                                // 3. zuerst gewählter Ordner
+  const mr=Math.min(...ins.map(i=>F[i].root));return tieBest(F,ins.filter(i=>F[i].root===mr))}
+function togglePref(p){const i=S.keepPrefs.indexOf(p);i>=0?S.keepPrefs.splice(i,1):S.keepPrefs.push(p);prefsChanged()}
+function movePref(i,d){const j=i+d;if(j<0||j>=S.keepPrefs.length)return;const a=S.keepPrefs;[a[i],a[j]]=[a[j],a[i]];prefsChanged()}
+function prefsChanged(){store.set("keepPrefs",S.keepPrefs);renderPrefs();renderTree();renderFoot();if(S.result)show();if(S.lb>=0&&S.lbMode==="result")lbRender()}
+function renderPrefs(){$("tieSel").value=S.keepTie;
+  $("prefs").innerHTML=S.keepPrefs.length?S.keepPrefs.map((p,i)=>`<div class="chip pref"><span class="star on">★${i+1}</span>
+      <span class="p" data-tip="${esc(disp(p))}"><bdi>${esc(disp(p))}</bdi></span>
+      <span class="mv" onclick="movePref(${i},-1)" title="nach oben">↑</span><span class="mv" onclick="movePref(${i},1)" title="nach unten">↓</span>
+      <span class="x" onclick='togglePref(${J(p)})'>${ic("x")}</span></div>`).join("")
+    :`<div class="empty-sel">Kein Original-Ordner festgelegt – im Baum mit ☆ markieren. Sonst gilt: ${S.outsideKeep&&S.useIndex?"Kopie außerhalb der Auswahl, dann ":""}zuerst gewählter Ordner.</div>`}
+function keepRuleText(){const tie={res:"höchste Auflösung",oldest:"älteste Datei",shortest:"kürzester Pfad"}[S.keepTie];
+  const parts=S.keepPrefs.map((p,i)=>`★${i+1} ${esc(disp(p))}`);
+  if(S.outsideKeep&&S.useIndex)parts.push("Kopie außerhalb der Auswahl");parts.push("zuerst gewählter Ordner");
+  return `Behalten: ${parts.join(" → ")} · bei mehreren: ${tie}.`}
+function autoSel(){S.marked.clear();for(const g of S.result.groups){const k=keepIdx(g);
+  g.files.forEach((f,i)=>{if(i!==k&&!f.outside)S.marked.add(f.path)})}show()}
+async function doTrash(){const {bytes,all}=markStats();
+  if(!confirm(`${S.marked.size} Dateien (${fmt(bytes)}) nach <Laufwerk>/.dupefinder-trash verschieben?`+
+     (all?`\n\nACHTUNG: In ${all} Gruppe(n) sind ALLE Kopien markiert – davon bliebe keine Datei am Original-Ort übrig.`:"")))return;
+  await moveToTrash([...S.marked])}
+async function moveToTrash(paths){
+  const r=await api("/api/trash",{paths});paths.forEach(p=>S.marked.delete(p));renderSaved(r);
+  if(r.errors.length)alert(r.errors.length+" Fehler:\n"+r.errors.slice(0,10).map(e=>e.path+": "+e.error).join("\n"));
+  await refreshAfterChange();
+  if(r.trashed.length)toast(`${r.trashed.length} Datei${r.trashed.length>1?"en":""} in den Papierkorb verschoben`,
+    "Rückgängig",async()=>{const x=await api("/api/trash/restore",{trash_paths:r.trashed});renderSaved(x);await refreshAfterChange();toast(`${x.restored.length} wiederhergestellt`)})}
+async function refreshAfterChange(){
+  const inResult=!!S.result||S.lbMode==="result",vpos=S.view?S.view.indexOf(S.lb):-1;
+  try{if(inResult||S.lastResult){const r=await api("/api/result");if(inResult)S.result=r;S.lastResult=r}}catch(e){console.error(e)}
+  try{if(S.trash)await loadTrash()}catch(e){console.error(e)}
+  try{if(S.ls&&!S.result&&!S.trash){const y=$("content").scrollTop;S.ls=await api("/api/ls?path="+enc(S.ls.path));if(S.lbMode!=="folder"){show();$("content").scrollTop=y}}}catch(e){console.error(e)}
+  if(S.lb>=0&&S.lbMode==="folder"){if(!S.ls||!S.ls.files.length){lbClose();show()}else{folderLbOpen(Math.min(S.lb,S.ls.files.length-1))}}
+  else if(S.lb>=0&&S.lbMode==="trash"){if(!S.trash||!S.trash.items.length)lbClose();else trashLbOpen(Math.min(S.lb,S.trash.items.length-1))}
+  else if(S.lb>=0&&S.lbMode==="result"){const G=S.result&&S.result.groups||[];S.view=viewList();
+    const same=G.findIndex(g=>g.id===S.lbGid);
+    if(same>=0&&S.view.includes(same))lbOpen(same,S.lbOff);          // gleiche Gruppe, die übrigen rücken nach
+    else if(S.view.length)lbOpen(S.view[Math.max(0,Math.min(vpos,S.view.length-1))],0);   // Gruppe erledigt -> nächste in der Liste
+    else lbClose()}
+  if(S.lbMode!=="folder")show();
+  try{await refreshTree()}catch(e){console.error(e)}}
+function trashNow(paths){const g=S.result.groups[S.lb];
+  const left=g.files.filter(f=>!paths.includes(f.path)).length;
+  if(!left&&!confirm("Das sind alle Kopien dieser Gruppe – wirklich alle in den Papierkorb?"))return;
+  moveToTrash(paths)}
+function lbTrashMarked(){const all=[...S.marked];if(!all.length)return;const {all:full}=markStats();
+  if(!confirm(`${all.length} markierte Dateien (aus allen Gruppen) in den Papierkorb?`+(full?`\n\nACHTUNG: In ${full} Gruppe(n) sind ALLE Kopien markiert.`:"")))return;
+  moveToTrash(all)}
+
+/* ================= Papierkorb ================= */
+async function openTrash(root){S.trash={root:root||"",items:[],sel:new Set()};S.result=null;
+  if(root&&!S.open.has(root.split("/")[0])){S.open.add(root.split("/")[0])}
+  await loadTrash();renderTree();show()}
+async function loadTrash(){const r=await api("/api/trash?root="+enc(S.trash.root));S.trash.items=r.items;S.trash.total=r.total;
+  const ex=new Set(r.items.map(i=>i.trash_path));S.trash.sel=new Set([...S.trash.sel].filter(x=>ex.has(x)))}
+function showTrash(){const T=$("tool"),L=$("list"),t=S.trash,n=t.sel.size;
+  const parts=t.root?t.root.split("/"):[];let acc="",crumb=`<a onclick="openTrash('')">alle Laufwerke</a>`;
+  parts.forEach((x,i)=>{acc+=(acc?"/":"")+x;crumb+=` / `+(i===parts.length-1?`<b>${esc(x)}</b>`:`<a onclick='openTrash(${J(acc)})'>${esc(x)}</a>`)});
+  const selBytes=t.items.filter(i=>t.sel.has(i.trash_path)).reduce((a,i)=>a+i.size,0);
+  T.innerHTML=`<span class="crumb">${ic("trash","ico")} <b>Papierkorb</b> · ${crumb}</span>
+    <span class="mut" style="font-size:12px">${t.items.length} Dateien · ${fmt(t.total||0)}</span><div class="grow"></div>
+    <button onclick="trashSelAll()">${n&&n===t.items.length?"Auswahl aufheben":"Alle auswählen"}</button>
+    <button class="pri" onclick="trashRestore([...S.trash.sel])" ${n?"":"disabled"}>${ic("undo")} Wiederherstellen${n?` (${n})`:""}</button>
+    ${n?`<button class="danger" onclick="trashPurge([...S.trash.sel])">Endgültig löschen (${n})</button>`
+       :`<button class="danger" onclick="trashPurge(S.trash.items.map(i=>i.trash_path))" ${t.items.length?"":"disabled"}>${t.root?"Diesen Papierkorb":"Papierkorb"} leeren (${t.items.length})</button>`}
+    <button onclick="S.trash=null;S.lastResult?(S.result=S.lastResult,show()):openDir(S.cwd||'')">Schließen</button>
+    ${n?`<span id="markinfo"><b>${n}</b> ausgewählt · <b>${fmt(selBytes)}</b></span>`:""}`;
+  if(!t.items.length){L.innerHTML=`<div class="empty">Papierkorb ist leer.</div>`;return}
+  // nach Herkunftsordner gruppieren
+  const groups=new Map();for(const it of t.items){const d=it.path.includes("/")?it.path.slice(0,it.path.lastIndexOf("/")):"";
+    if(!groups.has(d))groups.set(d,[]);groups.get(d).push(it)}
+  L.innerHTML=[...groups].map(([d,items])=>{const all=items.every(i=>t.sel.has(i.trash_path)),sz=items.reduce((a,i)=>a+i.size,0);
+    return `<div class="tgroup"><div class="tghead"><input type="checkbox" ${all?"checked":""} onchange='trashSelGroup(${J(items.map(i=>i.trash_path))},this.checked)'>
+      ${ic("folder","ico")}<span class="fp" onclick='openDir(${J(d)})' data-tip-always data-tip="Herkunftsordner öffnen">/data/${esc(d)}</span>
+      <span class="mut">${items.length} Datei${items.length>1?"en":""} · ${fmt(sz)}</span></div>
+      <div class="files">${items.map(trashTile).join("")}</div></div>`}).join("")}
+function trashTile(it){const c=S.trash.sel.has(it.trash_path),k=kindOf(it),u=`/api/thumb?path=${enc(it.trash_path)}`,name=it.path.split("/").pop();
+  const idx=S.trash.items.indexOf(it);
+  const rb=`<span class="tact"><button class="dbtn" onclick='event.stopPropagation();trashPurge([${J(it.trash_path)}])' title="Endgültig löschen">✕ Löschen</button><button class="rbtn" onclick='event.stopPropagation();trashRestore([${J(it.trash_path)}])' title="An den Originalort wiederherstellen">↩ Zurücklegen</button></span>`;
+  const db="";
+  const th=k==="file"?`<div class="th fth" onclick='trashLbOpen(${idx})'>${fileIcon(it.path)}${extOf(it.path)==="pdf"?`<img class="pdfth" src="${u}" loading="lazy" onerror="this.remove()">`:""}${rb}${db}</div>`
+    :`<div class="th" onclick='trashLbOpen(${idx})' style="background-image:url('${u}')">${k==="video"?`<span class="play">${ic("play")}</span>`:""}${rb}${db}</div>`;
+  return `<div class="f${c?" tsel":""}"><input type="checkbox" style="accent-color:var(--acc)" ${c?"checked":""} onchange='trashSel(${J(it.trash_path)},this.checked)'>
+${th}
+    <div class="meta"><div class="p tname" data-lbmeta="${esc(it.trash_path)}">${esc(name)}</div>
+    <div>${fmt(it.size)} · gelöscht ${dt(it.ts)}</div>${it.sha256?`<div class="hash" data-tip-always data-tip="SHA-256 ${esc(it.sha256)}"><i>SHA-256</i>${esc(it.sha256.slice(0,10))}…${esc(it.sha256.slice(-6))}</div>`:""}</div></div>`}
+function trashSel(tp,on){on?S.trash.sel.add(tp):S.trash.sel.delete(tp);show()}
+function trashSelGroup(tps,on){tps.forEach(tp=>on?S.trash.sel.add(tp):S.trash.sel.delete(tp));show()}
+function trashSelAll(){const t=S.trash;if(t.sel.size===t.items.length)t.sel.clear();else t.items.forEach(i=>t.sel.add(i.trash_path));show()}
+async function trashRestore(tps){if(!tps.length)return;const r=await api("/api/trash/restore",{trash_paths:tps});renderSaved(r);
+  const ren=r.restored.filter(x=>x.path!==(S.trash.items.find(i=>i.trash_path===x.trash_path)||{}).path).length;
+  const back=new Set(r.restored.map(x=>x.trash_path));S.trash.items=S.trash.items.filter(i=>!back.has(i.trash_path));show();
+  tps.forEach(x=>S.trash.sel.delete(x));
+  if(r.errors.length)alert(r.errors.length+" Fehler:\n"+r.errors.slice(0,10).map(e=>e.path+": "+e.error).join("\n"));
+  toast(`${r.restored.length} Datei${r.restored.length===1?"":"en"} wiederhergestellt${ren?` (${ren} mit neuem Namen, Original war belegt)`:""}`);
+  await refreshAfterChange()}
+async function trashPurge(tps){if(!tps.length)return;
+  const sz=S.trash.items.filter(i=>tps.includes(i.trash_path)).reduce((a,i)=>a+i.size,0);
+  if(!confirm(`${tps.length} Dateien (${fmt(sz)}) ENDGÜLTIG löschen?\nDas kann nicht rückgängig gemacht werden.`))return;
+  const r=await api("/api/trash/purge",{trash_paths:tps});renderSaved(r);tps.forEach(x=>S.trash.sel.delete(x));
+  const gone=new Set(r.deleted);S.trash.items=S.trash.items.filter(i=>!gone.has(i.trash_path));
+  S.trash.total=S.trash.items.reduce((a,i)=>a+i.size,0);show();
+  if(r.errors.length)alert(r.errors.length+" Datei(en) konnten nicht gelöscht werden:\n"+r.errors.slice(0,10).map(e=>e.path+": "+e.error).join("\n"));
+  toast(`${r.deleted.length} Datei${r.deleted.length===1?"":"en"} endgültig gelöscht${r.errors.length?`, ${r.errors.length} Fehler`:""}`);await refreshAfterChange()}
+
+window.addEventListener("unhandledrejection",e=>{console.error(e.reason);toast("Fehler: "+(e.reason&&e.reason.message||e.reason))});
+async function runMaint(){if(S.running)return toast("Es läuft gerade ein Vorgang");
+  if(!confirm("Index aufräumen?\n\n• prüft alle Index-Einträge auf Existenz (bei vielen Dateien dauert das etwas)\n• löscht verwaiste Vorschaubilder\n• entfernt Pfad/Hash endgültig gelöschter Dateien aus dem Protokoll"))return;
+  try{await api("/api/maintenance",{});S.maint=true;poll()}catch(e){alert(e.message)}}
+/* Toast */
+let toastT=null;
+function toast(msg,action,fn){const t=$("toast");clearTimeout(toastT);
+  t.innerHTML=`<span>${esc(msg)}</span>`+(action?`<button id="toastBtn">${esc(action)}</button>`:"");
+  if(action)$("toastBtn").onclick=()=>{t.classList.remove("on");fn()};
+  t.classList.add("on");toastT=setTimeout(()=>t.classList.remove("on"),action?10000:4000)}
+
+/* ================= Lightbox ================= */
+function detailsOn(n){const v=store.get("lbDet",null);return v===null?n<=3:v}
+function toggleDetails(){const n=document.querySelectorAll("#lbimgs figure").length;store.set("lbDet",!detailsOn(n));lbRender()}
+function lbRender(){S.lbMode==="trash"?trashLbOpen(S.lb):S.lbMode==="folder"?folderLbOpen(S.lb):lbOpen(S.lb)}
+async function folderLbOpen(i){const F=S.ls&&S.ls.files;if(!F||!F.length)return lbClose();
+  i=Math.max(0,Math.min(i,F.length-1));S.lbMode="folder";S.lb=i;const f=F[i];
+  $("lbtopinfo").textContent=`${S.ls.path?"/data/"+S.ls.path:"/data"} · ${i+1} / ${F.length} · ${f.name}`;
+  $("lbinfo").textContent=`${i+1} / ${F.length}`;$("lbmark").innerHTML="";
+  ["lbdel","lbdet","lbpage"].forEach(x=>$(x).style.display="none");$("lbpin").style.display="";
+  if(!f.finfo){$("lbimgs").innerHTML=`<figure>${lbMedia(f,false)}<figcaption><div class="ptitle">${esc(f.path)}</div><div class="mut" style="text-align:center">lade Infos …</div></figcaption></figure>`;
+    $("lb").classList.add("on");
+    try{Object.assign(f,await api("/api/fileinfo?path="+enc(f.path)),{finfo:true})}catch(e){f.finfo=true;f.meta=f.meta||{error:e.message}}
+    if(S.lbMode!=="folder"||S.lb!==i)return}
+  $("lbimgs").innerHTML=`<figure data-p="${esc(f.path)}">
+    <div class="lbhead">${infoBtn(f)}<span class="lbact">
+      <a class="btn blue" href="/api/download?path=${enc(f.path)}">${ic("save")}Download</a>
+      ${f.sha256?"":`<button class="blue" onclick='hashNow(${J(f.path)})' data-tip-always data-tip="SHA-256 jetzt berechnen und in den Index übernehmen – danach werden bekannte Kopien angezeigt"># Hash berechnen</button>`}
+      <button onclick='folderTrash(${J(f.path)})'>${ic("trash")}In Papierkorb</button></span>
+      <div class="lbtags">${copyTag(f)}</div>${pinHTML(f,null)}</div>
+    ${lbMedia(f,false)}<figcaption><div class="ptitle">${esc(f.path)}</div>${metaKV(f,true)}${indexHTML(f)}</figcaption></figure>`;
+  $("lb").classList.add("on")}
+function copyTag(f){if(!f.finfo)return"";const c=(f.copies||[]).filter(x=>x.state!=="missing").length,d=(f.deleted||[]).length;
+  if(!f.sha256)return `<span class="itag none" data-tip-always data-tip="Für diese Datei ist noch kein SHA-256 bekannt">kein Hash</span>`;
+  return (c?`<span class="itag copy">${c} Kopie${c>1?"n":""} bekannt</span>`:`<span class="itag ok">keine Kopie bekannt</span>`)+(d?`<span class="itag del">${d}× gelöscht/Papierkorb</span>`:"")}
+async function hashNow(p){const F=S.ls.files,f=F.find(x=>x.path===p);toast("berechne SHA-256 …");
+  Object.assign(f,await api("/api/hash",{paths:[p]}),{finfo:true});toast("Hash berechnet");lbRender()}
+async function folderTrash(p){await moveToTrash([p])}
+const DSTAT={trash:"liegt im Papierkorb",restored:"wurde zurückgelegt",deleted:"endgültig gelöscht",gone:"außerhalb des Tools gelöscht"};
+function indexHTML(f){if(!f.finfo)return"";const x=f.index;let h=`<div class="idxbox"><div class="ih">Index & Kopien</div>`;
+  h+=`<div class="irow"><span>Index</span><span>${!x?`<span class="mut">nicht im Index</span> – wird beim nächsten Scan des Ordners aufgenommen`
+      :x.current?`im Index · zuletzt gesehen ${dtl(x.seen)}`:`im Index, aber die Datei wurde seitdem geändert (Hash veraltet)`}</span></div>`;
+  if(x&&x.qhash)h+=`<div class="irow"><span>Schnell-Hash</span><span class="mono">${esc(x.qhash.slice(0,24))}…</span></div>`;
+  if(!f.sha256)h+=`<div class="irow"><span>SHA-256</span><span><span class="mut">noch nicht berechnet</span> <button class="mini blue" onclick='hashNow(${J(f.path)})'>jetzt berechnen</button></span></div>`;
+  else{const C=f.copies||[];
+    h+=`<div class="irow"><span>Kopien</span><span>${C.length?`${C.length} weitere Datei${C.length>1?"en":""} mit gleichem SHA-256 im Index`:"keine weitere Datei mit gleichem SHA-256 im Index"}</span></div>`;
+    h+=C.map(c=>{const dir=c.path.includes("/")?c.path.slice(0,c.path.lastIndexOf("/")):"";
+      return `<div class="crow ${c.state}"><span class="cst">${c.state==="ok"?"✓":c.state==="changed"?"⚠":"✗"}</span>
+        <a onclick='lbClose();openDir(${J(dir)})' data-tip-always data-tip="${c.state==="ok"?"vorhanden – Ordner öffnen":c.state==="changed"?"vorhanden, aber seit dem Scan geändert":"nicht mehr vorhanden (Index veraltet)"}">/data/${esc(c.path)}</a></div>`}).join("");
+    const D=f.deleted||[];
+    if(D.length)h+=`<div class="irow"><span>Gelöscht</span><span>${D.length} Kopie${D.length>1?"n":""} schon entfernt</span></div>`+
+      D.map(d=>`<div class="crow del"><span class="cst">🗑</span><span>${dtl(d.ts)} · ${DSTAT[d.status]||d.status}${d.path?` · /data/${esc(d.path)}`:` · <span class="mut">Pfad nicht mehr gespeichert</span>`}</span></div>`).join("")}
+  return h+`</div>`}
+function srcLabel(f){return f.outside
+  ?`<span class="srclbl outlbl" data-tip-always data-tip="Diese Datei liegt außerhalb der Auswahl und stammt aus dem Index${f.seen?` (zuletzt gesehen ${dtl(f.seen)})`:""}. Sie wurde eben auf Existenz geprüft.">↗ Auch schon gefunden in</span>`
+  :`<span class="srclbl curlbl">Aktuelle Suche</span>`}
+function captionHTML(f,det,g){const lab=g&&g.outside?srcLabel(f):"";
+  if(det)return `<figcaption>${lab}<div class="ptitle">${esc(f.trash_path?"Original: /data/"+f.path:f.path)}</div>${metaKV(f,true)}</figcaption>`;
+  if(det)return `<figcaption><div class="ptitle">${esc(f.trash_path?"Original: /data/"+f.path:f.path)}</div>${metaKV(f,true)}</figcaption>`;
+  const [l,v]=primaryDate(f);
+  return `<figcaption class="compact">${lab}<div class="ptitle" data-tip="${esc(f.path)}">${esc(f.path)}</div>
+    <div class="sub">${fmt(f.size)}${f.width?` · ${f.width}×${f.height}`:""}${f.duration?` · ${dur(f.duration)}`:""} · ${l} ${dt(typeof v==="number"?v:new Date(v)/1000)}</div></figcaption>`}
+const infoBtn=f=>{const k=f.trash_path||f.path,on=S.lbPins.has(k);
+  return `<span class="ibtn${on?" on":""}" data-lbmeta="${esc(k)}" onclick='togglePin(${J(k)})' title="Klicken: Infos fest anzeigen (mehrere gleichzeitig zum Vergleichen)">${ic("info")}Infos${on?" ✕":""}</span>`};
+function pinHTML(f,base){const k=f.trash_path||f.path;if(!S.lbPins.has(k))return"";
+  return `<div class="pinfo"><div class="phead"><b>${esc(f.path.split("/").pop())}</b><span class="x" onclick='togglePin(${J(k)})'>✕</span></div>
+    ${metaKV(f,true,base)}${f.finfo?indexHTML(f):""}${base?`<div class="legend"><span class="diff">gelb</span> = weicht von der ersten Datei ab</div>`:""}</div>`}
+function togglePin(k){S.lbPins.has(k)?S.lbPins.delete(k):S.lbPins.add(k);hideTip();lbRender()}
+function pinAll(){const vis=[...document.querySelectorAll("#lbimgs [data-lbmeta]")].map(x=>x.dataset.lbmeta);
+  const all=vis.length&&vis.every(k=>S.lbPins.has(k));vis.forEach(k=>all?S.lbPins.delete(k):S.lbPins.add(k));lbRender()}
+const LBMAX=5;
+function lbOpen(gi,off){S.lbMode="result";S.lb=gi;const g=S.result.groups[gi];
+  if(off===undefined)off=S.lbGid===g.id?S.lbOff||0:0;
+  off=Math.max(0,Math.min(off,g.files.length-LBMAX));S.lbOff=off;S.lbGid=g.id;
+  const vis=g.files.slice(off,off+LBMAX);
+  const many=vis.length>2;   // bei vielen Videos nicht alle gleichzeitig laden
+  const multi=S.result.roots.length>1,det=detailsOn(vis.length),base=vis.length>1?metaBase(vis[0]):null;
+  const kI=keepIdx(g);
+  $("lbimgs").innerHTML=vis.map((f,vi)=>{const fi=off+vi,c=S.marked.has(f.path);
+    return `<figure class="${c?"chk":""}" data-p="${esc(f.path)}" style="--rc:${fcol(f)}">
+    <div class="lbhead"><label class="lbsel"><input type="checkbox" ${c?"checked":""} onchange='setMark(${J(f.path)},this.checked)'>Markieren <kbd>${vi+1}</kbd></label>${infoBtn(f)}
+      <span class="lbact"><button onclick='trashNow([${J(f.path)}])' title="Sofort in den Papierkorb (rückgängig machbar)">${ic("trash")}In Papierkorb</button></span>
+      <div class="lbtags">${f.outside?`<span class="outtag">↗ Auch schon gefunden in</span>`:""}${fi===kI?`<span class="keep">behalten</span>`:""}${rootBadge(f,S.result)}</div>${pinHTML(f,vi>0?base:null)}</div>
+    ${lbMedia(f,many)}${captionHTML(f,det,g)}</figure>`}).join("");
+  const V=S.view&&S.view.includes(gi)?S.view:S.result.groups.map((_,i)=>i),pos=V.indexOf(gi)+1;
+  const info=`Gruppe ${pos} / ${V.length} · ${g.files.length} Dateien · ${fmt(g.wasted)} einsparbar`;
+  $("lbinfo").textContent=`Gruppe ${pos} / ${V.length}`;$("lbtopinfo").textContent=info;$("lbpin").style.display="";
+  const pg=$("lbpage");
+  if(g.files.length>LBMAX){pg.style.display="flex";
+    pg.innerHTML=`<button onclick="lbShift(-1)" ${off?"":"disabled"} title="Vorherige (Shift+←)">‹</button>
+      <span>Datei <b>${off+1}–${off+vis.length}</b> von <b>${g.files.length}</b>${off+LBMAX<g.files.length?` · <b>${g.files.length-off-vis.length}</b> weitere`:""}</span>
+      <button onclick="lbShift(1)" ${off+LBMAX<g.files.length?"":"disabled"} title="Nächste (Shift+→)">›</button>`}
+  else pg.style.display="none";
+  $("lbdet").textContent=det?"Details ausblenden":"Details einblenden";$("lbdel").style.display="";
+  $("lb").classList.add("on");updDel()}
+
+/* Großansicht im Papierkorb */
+async function trashLbOpen(i){const t=S.trash;if(!t||!t.items.length)return lbClose();
+  i=Math.max(0,Math.min(i,t.items.length-1));S.lbMode="trash";S.lb=i;const it=t.items[i];
+  if(!it.meta){try{Object.assign(it,await api("/api/meta?path="+enc(it.trash_path)))}catch{it.meta={}}}
+  if(S.lbMode!=="trash"||S.lb!==i)return;
+  const v={...it,path:it.trash_path};   // Medien aus dem Papierkorb laden
+  $("lbimgs").innerHTML=`<figure data-tp="${esc(it.trash_path)}">
+    <div class="lbhead">${infoBtn(it)}<span class="lbact"><button class="blue" onclick='trashRestore([${J(it.trash_path)}])'>${ic("undo")}Wiederherstellen</button>
+      <button onclick='trashPurge([${J(it.trash_path)}])'>${ic("trash")}Endgültig löschen</button></span>${pinHTML(it,null)}</div>
+    ${lbMedia(v,false)}${captionHTML(it,true)}</figure>`;
+  $("lbinfo").textContent=`${i+1} / ${t.items.length}`;
+  $("lbtopinfo").textContent=`Papierkorb · ${i+1} / ${t.items.length} · ${it.path.split("/").pop()}`;
+  $("lbmark").innerHTML="";$("lbdel").style.display="none";$("lbdet").style.display="none";
+  $("lb").classList.add("on")}
+function lbMedia(f,many){const k=kindOf(f),v=`/api/view?path=${enc(f.path)}`,t=`/api/thumb?path=${enc(f.path)}&size=1280`;
+  if(k==="image")return `<img src="${v}">`;
+  if(k==="video"&&PLAY.test(f.path))return `<video src="${v}" poster="${t}" controls preload="${many?"none":"metadata"}" onplay="pauseOthers(this)"></video>`;
+  if(k==="video")return `<div class="noplay" style="background-image:url('${t}')"><span>Format nicht im Browser abspielbar · <a href="/api/download?path=${enc(f.path)}" style="color:#8fb4f8">Download</a></span></div>`;
+  const e=extOf(f.path),ty=ftype(f.path),dl=`/api/download?path=${enc(f.path)}`;
+  if(e==="pdf")return `<iframe class="lbdoc" src="${v}#view=FitH" loading="lazy"></iframe>`;
+  if(TEXTV.has(e)&&f.size<=8*1024*1024)return `<iframe class="lbdoc lbtext" src="${v}" loading="lazy"></iframe>`;
+  if(ty.cat==="audio"&&AUDIOV.has(e))return `<div class="lbicon">${fileIcon(f.path,"big")}<div class="lbtype">${esc(ty.label)}</div><audio src="${v}" controls preload="none" onplay="pauseOthers(this)"></audio></div>`;
+  return `<div class="lbicon">${fileIcon(f.path,"big")}<div class="lbtype">${esc(ty.label)} · .${esc(e||"–")}</div>
+    <div class="mut" style="font-size:12px">Keine Vorschau für diesen Dateityp</div><a class="dlbtn" href="${dl}">${ic("save")} Download</a></div>`}
+const TEXTV=new Set("txt md log nfo csv tsv json xml yml yaml ini conf cfg toml env srt vtt py js ts sh bat ps1 c h cpp java go rs php rb sql html htm css svg".split(" "));
+const AUDIOV=new Set("mp3 wav flac aac ogg oga opus m4a".split(" "));
+function pauseOthers(el){document.querySelectorAll("#lbimgs video,#lbimgs audio").forEach(v=>{if(v!==el)v.pause()})}
+function lbShift(d){const g=S.result.groups[S.lb];lbOpen(S.lb,S.lbOff+d*LBMAX>=g.files.length?S.lbOff:S.lbOff+d*LBMAX)}
+function lbGo(d){const n=S.lb+d;
+  if(S.lbMode==="trash"){if(n>=0&&n<S.trash.items.length)trashLbOpen(n);return}
+  if(S.lbMode==="folder"){const F=S.ls.files;if(n>=0&&n<F.length)folderLbOpen(n);return}
+  const V=S.view&&S.view.length?S.view:S.result.groups.map((_,i)=>i),pos=V.indexOf(S.lb),nx=V[pos+d];
+  if(nx!==undefined)lbOpen(nx,0)}
+function lbClose(){const wasFolder=S.lbMode==="folder";document.querySelectorAll("#lbimgs video,#lbimgs audio").forEach(v=>v.pause());$("lbimgs").innerHTML="";$("lb").classList.remove("on");
+  S.lb=-1;S.lbMode=null;["lbdet","lbdel","lbpin"].forEach(x=>$(x).style.display="");hideTip();
+  if(wasFolder&&S.ls&&!S.result&&!S.trash){const y=$("content").scrollTop;show();$("content").scrollTop=y}}
+document.addEventListener("keydown",e=>{if(S.lb<0)return;if(e.key==="Escape"||e.key==="Backspace"){e.preventDefault();lbClose()}
+  if(e.shiftKey&&S.lbMode==="result"&&(e.key==="ArrowRight"||e.key==="ArrowLeft")){lbShift(e.key==="ArrowRight"?1:-1);return}
+  if(e.key==="ArrowRight")lbGo(1);if(e.key==="ArrowLeft")lbGo(-1);
+  if(S.lbMode!=="result")return;
+  if(e.key==="Delete"){const p=[...S.marked].filter(x=>S.result.groups[S.lb].files.some(f=>f.path===x));if(p.length)trashNow(p)}
+  if(/^[1-5]$/.test(e.key)){const f=S.result.groups[S.lb].files[S.lbOff+(+e.key)-1];if(f)setMark(f.path,!S.marked.has(f.path))}});
+function renderSaved(st){if(!st)return;const el=$("saved");el.style.display="flex";
+  el.innerHTML=`${ic("save")}Bisher eingespart: <b>${fmt(st.saved_bytes)}</b> · ${(st.saved_files||0).toLocaleString("de-DE")} Dateien`;
+  el.title=`Summe aller in den Papierkorb verschobenen Duplikate seit ${new Date(st.first_start*1000).toLocaleDateString("de-DE")}`;
+  S.indexN=st.n||0;renderFoot();
+  $("fright").innerHTML=`Index: ${(st.n||0).toLocaleString("de-DE")} Dateien · <span data-tip-always data-tip="Datenbank ${fmt(st.db_main||0)} + Write-Ahead-Log ${fmt(st.db_wal||0)}">${fmt(st.db_bytes||0)}</span> · <a class="maint" onclick="runMaint()" data-tip-always data-tip="Verwaiste Index-Einträge und Vorschaubilder entfernen, Protokoll endgültig gelöschter Dateien anonymisieren">aufräumen</a>`;
+  $("trashCnt").textContent=(st.trash_files||0).toLocaleString("de-DE");
+  $("trashBtn").title=`${st.trash_files||0} Dateien · ${fmt(st.trash_bytes||0)} im Papierkorb`}
+
+/* ================= Start ================= */
+(async()=>{
+  S.cross=store.get("cross",false);S.useIndex=store.get("useIndex",true);S.outsideKeep=store.get("outsideKeep",true);
+  S.keepPrefs=store.get("keepPrefs",[]);S.keepTie=store.get("keepTie","res");S.rsort=store.get("rsort","wasted");S.rfilter=store.get("rfilter","all");renderPrefs();
+  await loadKids("");
+  // gemerkte Auswahl nur übernehmen, wenn die Ordner noch existieren
+  const sel=store.get("sel",[]),ok=[];
+  for(const p of sel){try{if(p!=="")await api("/api/ls?path="+enc(p));ok.push(p)}catch{}}
+  S.sel=ok;
+  for(const p of store.get("open",[""]))try{await loadKids(p);S.open.add(p)}catch{}
+  selChanged();openDir("");
+  try{renderSaved(await api("/api/stats"))}catch{}
+  poll()})();
+</script>
+</body>
+</html>

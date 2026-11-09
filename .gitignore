@@ -1,0 +1,8 @@
+# Laufzeitdaten (SQLite, Thumbnails) – liegen in ./config bzw. /volume1/docker/dupefinder/config
+config/
+*.db
+*.db-wal
+*.db-shm
+__pycache__/
+*.pyc
+.DS_Store

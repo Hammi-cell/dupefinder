@@ -1,0 +1,18 @@
+services:
+  dupefinder:
+    build: .
+    container_name: dupefinder
+    restart: unless-stopped
+    user: "1028:100"          # dein DSM-User:users  ->  per SSH: id <user>
+    ports:
+      - "8090:8080"
+    environment:
+      - TZ=Europe/Berlin
+      - WORKERS=2             # bei schwacher Synology-CPU eher 2
+      # - KEEP_DELETE_LOG=1   # Pfade endgültig gelöschter Dateien im Protokoll behalten (SHA-256 bleibt immer)
+    volumes:
+      - /volume1/docker/dupefinder/config:/config
+      - /volume1/data:/data/data
+      - /volume1/homes/hammi:/data/hammi
+      # nur prüfen, nichts verschieben:
+      # - /volume1/archiv:/data/archiv:ro
